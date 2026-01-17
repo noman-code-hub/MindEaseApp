@@ -14,20 +14,7 @@ const HomeScreen = () => {
     return (
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
             {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.logoContainer}>
-                    <View style={styles.logoIcon}>
-                        <Icon name="brain" size={24} color="#FFFFFF" />
-                    </View>
-                    <View>
-                        <Text style={styles.logoText}>MindEase</Text>
-                        <Text style={styles.premiumText}>PREMIUM CARE</Text>
-                    </View>
-                </View>
-                <TouchableOpacity style={styles.notificationIcon}>
-                    <Icon name="notifications" size={24} color="#FF9B71" />
-                </TouchableOpacity>
-            </View>
+            {/* Header Removed */}
 
             {/* Search Bar */}
             <View style={styles.searchContainer}>
@@ -184,45 +171,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingTop: 10,
-        paddingBottom: 15,
-    },
-    logoContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    logoIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: '#5B7FFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    logoText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#000',
-    },
-    premiumText: {
-        fontSize: 8,
-        color: '#999',
-        letterSpacing: 0.8,
-    },
-    notificationIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: '#FFF5F0',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',

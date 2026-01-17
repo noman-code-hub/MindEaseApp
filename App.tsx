@@ -8,7 +8,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import BottomTabNavigator from './src/navigation/BottomTabNavigator';
+import AppNavigator from './src/navigation/AppNavigator';
 
 function App() {
   return (
@@ -16,7 +16,7 @@ function App() {
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <NavigationContainer>
-          <BottomTabNavigator />
+          <AppNavigator />
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>
