@@ -5,12 +5,15 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import HomeScreen from '../screens/HomeScreen';
-import PlansScreen from '../screens/PlansScreen';
-import ChatScreen from '../screens/ChatScreen';
+import AppointmentScreen from '../screens/AppointmentScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 import AllSpecialistsScreen from '../screens/AllSpecialistsScreen';
 
+import WelcomeScreen from '../screens/WelcomeScreen';
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
+import DoctorProfileSetupScreen from '../screens/DoctorProfileSetupScreen';
 import TopBar from '../components/TopBar';
 
 const Stack = createNativeStackNavigator();
@@ -26,10 +29,8 @@ const MainTabs = () => {
 
                     if (route.name === 'Home') {
                         iconName = focused ? 'home' : 'home-outline';
-                    } else if (route.name === 'Plans') {
+                    } else if (route.name === 'Appointment') {
                         iconName = focused ? 'calendar' : 'calendar-outline';
-                    } else if (route.name === 'Chat') {
-                        iconName = focused ? 'chatbubble' : 'chatbubble-outline';
                     } else if (route.name === 'Profile') {
                         iconName = focused ? 'person' : 'person-outline';
                     }
@@ -52,8 +53,7 @@ const MainTabs = () => {
             })}
         >
             <Tab.Screen name="Home" component={HomeScreen} />
-            <Tab.Screen name="Plans" component={PlansScreen} />
-            <Tab.Screen name="Chat" component={ChatScreen} />
+            <Tab.Screen name="Appointment" component={AppointmentScreen} />
             <Tab.Screen name="Profile" component={ProfileScreen} />
         </Tab.Navigator>
     );
@@ -64,10 +64,16 @@ const MainTabs = () => {
 const AppNavigator = () => {
     return (
         <Stack.Navigator
+            initialRouteName="Welcome"
             screenOptions={{
                 headerShown: false,
             }}
         >
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="DoctorProfileSetup" component={DoctorProfileSetupScreen} />
+            <Stack.Screen name="OtpVerification" component={require('../screens/OtpVerificationScreen').default} />
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="AllSpecialists" component={AllSpecialistsScreen} />
             <Stack.Screen
