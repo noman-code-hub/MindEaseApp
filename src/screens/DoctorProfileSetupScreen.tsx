@@ -25,7 +25,7 @@ const DoctorProfileSetupScreen = () => {
         name: '',
         email: '',
         emergencyContact: '',
-        address: '',
+        address: { street: '', city: '' },
         pmdcRegistrationNumber: '',
         experience: '',
         locations: [] as any[],
@@ -36,7 +36,7 @@ const DoctorProfileSetupScreen = () => {
     // Temporary states for adding items
     const [tempEducation, setTempEducation] = useState({ degree: '', institute: '', startYear: '', endYear: '' });
     const [tempLocation, setTempLocation] = useState({ name: '', phone: '', lat: '', lng: '', isOnline: false });
-    const [tempAvailability, setTempAvailability] = useState({ day: 'Monday', startTime: '', endTime: '', appointmentType: 'Physical', locationName: '' });
+    const [tempAvailability, setTempAvailability] = useState({ day: 'Monday', startTime: '', endTime: '', appointmentType: 'inclinic', locationName: '' });
 
     const handleNext = () => {
         if (currentStep < STEPS.length - 1) {
@@ -56,19 +56,86 @@ const DoctorProfileSetupScreen = () => {
 
     const [loading, setLoading] = useState(false);
 
-    // Get userId from navigation params
+    // Get userId and token from navigation params
     const route = useRoute();
-    const { userId } = (route.params as { userId: string }) || {};
+    const { userId, token } = (route.params as { userId: string; token: string }) || {};
 
     React.useEffect(() => {
+        console.log('DoctorProfileSetup - Received userId:', userId);
+        console.log('DoctorProfileSetup - Received token:', token);
+
         if (!userId) {
             Alert.alert(
                 'Session Error',
                 'User Identification missing. Please login again.',
                 [{ text: 'Go to Login', onPress: () => navigation.navigate('Login') }]
             );
+        } else {
+            // Fetch existing profile data
+            fetchDoctorProfile();
         }
-    }, [userId]);
+    }, [userId, token]);
+
+    const fetchDoctorProfile = async () => {
+        if (!userId) return;
+
+        try {
+            console.log('Fetching doctor profile for userId:', userId);
+
+            const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            });
+
+            console.log('Response status:', response.status);
+
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('Non-JSON response received:', text.substring(0, 500));
+                console.log('No existing profile found or server error, starting fresh');
+                return;
+            }
+
+            const data = await response.json();
+            console.log('Doctor profile fetch response:', JSON.stringify(data, null, 2));
+
+            if (response.status === 200 || response.status === 201) {
+                // Extract profile data from response
+                let doctorData = data.data || data.doctor || data;
+
+                // Handle array response
+                if (Array.isArray(doctorData) && doctorData.length > 0) {
+                    doctorData = doctorData[0];
+                }
+
+                // Pre-populate form with existing data
+                if (doctorData) {
+                    setProfileData({
+                        name: doctorData.name || '',
+                        email: doctorData.email || '',
+                        emergencyContact: doctorData.emergencyContact || '',
+                        address: doctorData.address || { street: '', city: '' },
+                        pmdcRegistrationNumber: doctorData.pmdcRegistrationNumber || '',
+                        experience: doctorData.experience ? String(doctorData.experience) : '',
+                        locations: doctorData.locations || [],
+                        education: doctorData.education || [],
+                        availability: doctorData.availability || []
+                    });
+                    console.log('Profile data pre-populated successfully');
+                }
+            } else {
+                console.log('No existing profile found, starting fresh');
+            }
+        } catch (error) {
+            console.error('Error fetching doctor profile:', error);
+            // Don't show error alert - just let them fill the form from scratch
+        }
+    };
 
     const handleSubmit = async () => {
         // Validate minimal requirement
@@ -84,22 +151,47 @@ const DoctorProfileSetupScreen = () => {
 
         setLoading(true);
         try {
+            // Sanitize locations to ensure all have coordinates
+            const sanitizedLocations = profileData.locations.map(loc => {
+                // If location doesn't have coordinates, add default ones
+                if (!loc.coordinates || typeof loc.coordinates.lat === 'undefined' || typeof loc.coordinates.lng === 'undefined') {
+                    return {
+                        ...loc,
+                        coordinates: { lat: 0, lng: 0 }
+                    };
+                }
+                return loc;
+            });
+
             const payload = {
                 userId: userId,
                 ...profileData,
+                locations: sanitizedLocations, // Use sanitized locations
                 // Ensure numbers are numbers if required by backend, user schema suggests strict types usually
                 experience: parseInt(profileData.experience) || 0,
             };
 
-            const response = await fetch('https://prod.your-api-server.com/api/doctor/update-profile', {
+            console.log('=== DEBUG: Locations Array ===');
+            console.log('Number of locations:', sanitizedLocations.length);
+            sanitizedLocations.forEach((loc, idx) => {
+                console.log(`Location ${idx}:`, JSON.stringify(loc, null, 2));
+            });
+            console.log('=== END DEBUG ===');
+
+            console.log('Sending profile update with payload:', JSON.stringify(payload, null, 2));
+            console.log('Using token:', token);
+
+            const response = await fetch('https://appbookingbackend.onrender.com/api/doctor/update-profile', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
                 },
                 body: JSON.stringify(payload),
             });
 
             const data = await response.json();
+            console.log('Profile update response:', JSON.stringify(data, null, 2));
 
             if (response.status === 200 || response.status === 201) {
                 Alert.alert('Success', 'Profile updated successfully!', [
@@ -175,10 +267,15 @@ const DoctorProfileSetupScreen = () => {
             />
             <TextInput
                 style={styles.input}
-                placeholder="Address"
-                multiline
-                value={profileData.address}
-                onChangeText={(t) => updateProfile('address', t)}
+                placeholder="Street Address"
+                value={profileData.address.street}
+                onChangeText={(t) => setProfileData(prev => ({ ...prev, address: { ...prev.address, street: t } }))}
+            />
+            <TextInput
+                style={styles.input}
+                placeholder="City"
+                value={profileData.address.city}
+                onChangeText={(t) => setProfileData(prev => ({ ...prev, address: { ...prev.address, city: t } }))}
             />
             <TextInput
                 style={styles.input}
@@ -238,16 +335,23 @@ const DoctorProfileSetupScreen = () => {
 
     const addLocation = () => {
         if (!tempLocation.name) return Alert.alert('Error', 'Name is required');
-        // If not online, lat/lng required? User said "coordinates in inclinic", let's assume loose validation or strict based on 'isOnline'
+        // If not online, lat/lng required
         if (!tempLocation.isOnline && (!tempLocation.lat || !tempLocation.lng)) {
             return Alert.alert('Error', 'Coordinates required for in-clinic locations');
         }
 
-        const loc = {
+        const loc: any = {
             name: tempLocation.name,
-            phone: tempLocation.phone,
-            coordinates: tempLocation.isOnline ? null : { lat: parseFloat(tempLocation.lat), lng: parseFloat(tempLocation.lng) }
+            phone: tempLocation.phone
         };
+
+        // Always add coordinates - for online consultations, use default (0, 0)
+        if (!tempLocation.isOnline) {
+            loc.coordinates = { lat: parseFloat(tempLocation.lat), lng: parseFloat(tempLocation.lng) };
+        } else {
+            // For online consultations, provide default coordinates to satisfy backend validation
+            loc.coordinates = { lat: 0, lng: 0 };
+        }
 
         setProfileData(prev => ({ ...prev, locations: [...prev.locations, loc] }));
         setTempLocation({ name: '', phone: '', lat: '', lng: '', isOnline: false });
@@ -337,16 +441,16 @@ const DoctorProfileSetupScreen = () => {
 
                 <View style={styles.row}>
                     <TouchableOpacity
-                        style={[styles.chip, tempAvailability.appointmentType === 'Physical' && styles.chipActive]}
-                        onPress={() => setTempAvailability({ ...tempAvailability, appointmentType: 'Physical' })}
+                        style={[styles.chip, tempAvailability.appointmentType === 'inclinic' && styles.chipActive]}
+                        onPress={() => setTempAvailability({ ...tempAvailability, appointmentType: 'inclinic' })}
                     >
-                        <Text style={[styles.chipText, tempAvailability.appointmentType === 'Physical' && styles.chipTextActive]}>Physical</Text>
+                        <Text style={[styles.chipText, tempAvailability.appointmentType === 'inclinic' && styles.chipTextActive]}>In-Clinic</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.chip, tempAvailability.appointmentType === 'Online' && styles.chipActive]}
-                        onPress={() => setTempAvailability({ ...tempAvailability, appointmentType: 'Online' })}
+                        style={[styles.chip, tempAvailability.appointmentType === 'online' && styles.chipActive]}
+                        onPress={() => setTempAvailability({ ...tempAvailability, appointmentType: 'online' })}
                     >
-                        <Text style={[styles.chipText, tempAvailability.appointmentType === 'Online' && styles.chipTextActive]}>Online</Text>
+                        <Text style={[styles.chipText, tempAvailability.appointmentType === 'online' && styles.chipTextActive]}>Online</Text>
                     </TouchableOpacity>
                 </View>
 

@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LoginScreen = () => {
     const navigation = useNavigation();
@@ -62,6 +63,7 @@ const LoginScreen = () => {
             });
 
             const data = await response.json();
+            console.log('Login response data:', JSON.stringify(data, null, 2));
 
             if (response.status === 200 || response.status === 201) {
                 // Assuming successful login returns some user data or token
@@ -71,17 +73,123 @@ const LoginScreen = () => {
                 const userRole = data.data?.role || role; // Fallback to route param if API doesn't return role (it should)
 
                 if (userRole && userRole.toLowerCase() === 'doctor') {
-                    // Robustly extract userId
+                    // Robustly extract userId and token
                     const userId = data.data?.userId || data.data?._id || data.data?.user?.userId || data.data?.user?._id || data.userId;
+                    const token = data.data?.accessToken || data.data?.token || data.token || data.accessToken;
 
-                    navigation.reset({
-                        index: 0,
-                        routes: [{
-                            name: 'DoctorProfileSetup',
-                            params: { userId: userId }
-                        }],
-                    });
+                    console.log('Extracted userId:', userId);
+                    console.log('Extracted token:', token);
+
+                    // Store authentication data in AsyncStorage
+                    try {
+                        await AsyncStorage.setItem('userId', userId || '');
+                        await AsyncStorage.setItem('token', token || '');
+                        await AsyncStorage.setItem('role', userRole);
+                        console.log('Stored auth data in AsyncStorage');
+                    } catch (storageError) {
+                        console.error('Failed to store auth data:', storageError);
+                    }
+
+                    // Check if doctor profile already exists
+                    try {
+                        console.log('Checking if doctor profile exists...');
+                        const profileResponse = await fetch(`https://appbookingbackend.onrender.com/api/doctor`, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        console.log('Profile check status:', profileResponse.status);
+
+                        if (profileResponse.status === 200 || profileResponse.status === 201) {
+                            const profileText = await profileResponse.text();
+
+                            // Try to parse as JSON
+                            try {
+                                const profileData = JSON.parse(profileText);
+                                let doctor = profileData.data || profileData.doctor || profileData;
+
+                                // Handle array response
+                                if (Array.isArray(doctor) && doctor.length > 0) {
+                                    doctor = doctor[0];
+                                }
+
+                                console.log('Doctor profile data:', JSON.stringify(doctor, null, 2));
+
+                                // Check if profile has essential fields for a complete profile
+                                // A complete profile should have:
+                                // 1. Basic info: name, email
+                                // 2. Professional info: pmdcRegistrationNumber (optional but recommended)
+                                // 3. At least one education entry (optional but recommended)
+                                // 4. At least one location (optional but recommended)
+                                // 5. At least one availability slot (optional but recommended)
+
+                                const hasBasicInfo = doctor && doctor.name && doctor.email;
+                                const hasEducation = doctor && doctor.education && Array.isArray(doctor.education) && doctor.education.length > 0;
+                                const hasLocations = doctor && doctor.locations && Array.isArray(doctor.locations) && doctor.locations.length > 0;
+                                const hasAvailability = doctor && doctor.availability && Array.isArray(doctor.availability) && doctor.availability.length > 0;
+
+                                // Consider profile complete if it has basic info
+                                // The other fields are optional but enhance the profile
+                                const isProfileComplete = hasBasicInfo;
+
+                                console.log('Profile completeness check:', {
+                                    hasBasicInfo,
+                                    hasEducation,
+                                    hasLocations,
+                                    hasAvailability,
+                                    isProfileComplete
+                                });
+
+                                if (isProfileComplete) {
+                                    console.log('Doctor profile is complete, navigating to Main');
+                                    navigation.reset({
+                                        index: 0,
+                                        routes: [{ name: 'Main' }],
+                                    });
+                                    return;
+                                } else {
+                                    console.log('Doctor profile exists but is incomplete');
+                                }
+                            } catch (parseError) {
+                                console.log('Profile response is not JSON, profile likely does not exist');
+                            }
+                        }
+
+                        // If we reach here, profile doesn't exist or is incomplete
+                        console.log('Doctor profile does not exist or is incomplete, navigating to setup');
+                        navigation.reset({
+                            index: 0,
+                            routes: [{
+                                name: 'DoctorProfileSetup',
+                                params: { userId: userId, token: token }
+                            }],
+                        });
+                    } catch (profileCheckError) {
+                        console.error('Error checking profile:', profileCheckError);
+                        // On error, assume profile doesn't exist and go to setup
+                        navigation.reset({
+                            index: 0,
+                            routes: [{
+                                name: 'DoctorProfileSetup',
+                                params: { userId: userId, token: token }
+                            }],
+                        });
+                    }
                 } else {
+                    // Store patient auth data
+                    try {
+                        const userId = data.data?.userId || data.data?._id || data.userId;
+                        const token = data.data?.accessToken || data.data?.token || data.token;
+                        await AsyncStorage.setItem('userId', userId || '');
+                        await AsyncStorage.setItem('token', token || '');
+                        await AsyncStorage.setItem('role', userRole || 'patient');
+                    } catch (storageError) {
+                        console.error('Failed to store auth data:', storageError);
+                    }
+
                     navigation.reset({
                         index: 0,
                         routes: [{ name: 'Main' }],
