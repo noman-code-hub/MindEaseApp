@@ -22,7 +22,7 @@ const LoginScreen = () => {
     const { role } = route.params || { role: 'Patient' };
 
     const [whatsapp, setWhatsapp] = useState('');
-    const [email, setEmail] = useState('');
+
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
@@ -93,7 +93,7 @@ const LoginScreen = () => {
                     // Check if doctor profile already exists
                     try {
                         console.log('Checking if doctor profile exists...');
-                        const profileResponse = await fetch(`https://appbookingbackend.onrender.com/api/doctor`, {
+                        const profileResponse = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
                             method: 'GET',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -247,18 +247,7 @@ const LoginScreen = () => {
                             </View>
                         </View>
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Email or Username</Text>
-                            <View style={styles.inputWrapper}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter your email"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    autoCapitalize="none"
-                                />
-                            </View>
-                        </View>
+
 
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>Password</Text>
@@ -289,8 +278,16 @@ const LoginScreen = () => {
                             </TouchableOpacity>
                         </View>
 
-                        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                            <Text style={styles.loginButtonText}>Sign In</Text>
+                        <TouchableOpacity
+                            style={[styles.loginButton, loading && { opacity: 0.7 }]}
+                            onPress={handleLogin}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                                <Text style={styles.loginButtonText}>Sign In</Text>
+                            )}
                         </TouchableOpacity>
 
                         <View style={styles.footer}>

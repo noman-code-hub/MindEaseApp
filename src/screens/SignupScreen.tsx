@@ -169,8 +169,16 @@ const SignupScreen = () => {
                             </View>
                         </View>
 
-                        <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-                            <Text style={styles.signupButtonText}>Sign Up</Text>
+                        <TouchableOpacity
+                            style={[styles.signupButton, loading && styles.signupButtonDisabled]}
+                            onPress={handleSignup}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                                <Text style={styles.signupButtonText}>Sign Up</Text>
+                            )}
                         </TouchableOpacity>
 
                         <View style={styles.footer}>

@@ -7,12 +7,14 @@ import {
     TouchableOpacity,
     ScrollView,
     Alert,
-    Switch, // Added comma to fix syntax error
+    Switch,
     ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSpecialities, Speciality } from '../services/doctorService';
 
 const STEPS = ['Personal Info', 'Education', 'Locations', 'Availability'];
 
@@ -28,6 +30,10 @@ const DoctorProfileSetupScreen = () => {
         address: { street: '', city: '' },
         pmdcRegistrationNumber: '',
         experience: '',
+        speciality: '',
+        specialityId: '',
+        services: [] as string[],
+        consultationTime: '15',
         locations: [] as any[],
         education: [] as any[],
         availability: [] as any[]
@@ -37,6 +43,10 @@ const DoctorProfileSetupScreen = () => {
     const [tempEducation, setTempEducation] = useState({ degree: '', institute: '', startYear: '', endYear: '' });
     const [tempLocation, setTempLocation] = useState({ name: '', phone: '', lat: '', lng: '', isOnline: false });
     const [tempAvailability, setTempAvailability] = useState({ day: 'Monday', startTime: '', endTime: '', appointmentType: 'inclinic', locationName: '' });
+
+    // Specialities state
+    const [specialities, setSpecialities] = useState<Speciality[]>([]);
+    const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
     const handleNext = () => {
         if (currentStep < STEPS.length - 1) {
@@ -55,34 +65,62 @@ const DoctorProfileSetupScreen = () => {
     };
 
     const [loading, setLoading] = useState(false);
+    const [authToken, setAuthToken] = useState<string | null>(null);
 
     // Get userId and token from navigation params
     const route = useRoute();
-    const { userId, token } = (route.params as { userId: string; token: string }) || {};
+    const { userId: routeUserId, token: routeToken } = (route.params as { userId: string; token: string }) || {};
 
     React.useEffect(() => {
-        console.log('DoctorProfileSetup - Received userId:', userId);
-        console.log('DoctorProfileSetup - Received token:', token);
+        const loadAuthData = async () => {
+            try {
+                // Try to get from AsyncStorage first
+                const storedToken = await AsyncStorage.getItem('token');
+                const storedUserId = await AsyncStorage.getItem('userId');
 
-        if (!userId) {
-            Alert.alert(
-                'Session Error',
-                'User Identification missing. Please login again.',
-                [{ text: 'Go to Login', onPress: () => navigation.navigate('Login') }]
-            );
-        } else {
-            // Fetch existing profile data
-            fetchDoctorProfile();
-        }
-    }, [userId, token]);
+                const finalToken = storedToken || routeToken;
+                const finalUserId = storedUserId || routeUserId;
 
-    const fetchDoctorProfile = async () => {
+                setAuthToken(finalToken);
+
+                console.log('DoctorProfileSetup - Using userId:', finalUserId);
+                console.log('DoctorProfileSetup - Using token:', finalToken ? 'Token present' : 'No token');
+
+                if (!finalUserId) {
+                    Alert.alert(
+                        'Session Error',
+                        'User Identification missing. Please login again.',
+                        [{ text: 'Go to Login', onPress: () => navigation.navigate('Login') }]
+                    );
+                } else {
+                    // Fetch existing profile data
+                    fetchDoctorProfile(finalUserId, finalToken);
+                }
+            } catch (error) {
+                console.error('Error loading auth data:', error);
+            }
+        };
+
+        loadAuthData();
+    }, [routeUserId, routeToken]);
+
+    // Fetch specialities on mount
+    React.useEffect(() => {
+        const loadSpecialities = async () => {
+            const specs = await getSpecialities();
+            setSpecialities(specs);
+        };
+        loadSpecialities();
+    }, []);
+
+    const fetchDoctorProfile = async (userId: string | null, token: string | null) => {
         if (!userId) return;
 
         try {
             console.log('Fetching doctor profile for userId:', userId);
 
-            const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor`, {
+            // Use the user-specific endpoint to get only this doctor's profile
+            const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -91,6 +129,12 @@ const DoctorProfileSetupScreen = () => {
             });
 
             console.log('Response status:', response.status);
+
+            // If profile doesn't exist (404), that's fine - it's a new signup
+            if (response.status === 404) {
+                console.log('No existing profile found for this user, starting with clean form');
+                return;
+            }
 
             // Check if response is JSON
             const contentType = response.headers.get('content-type');
@@ -108,13 +152,13 @@ const DoctorProfileSetupScreen = () => {
                 // Extract profile data from response
                 let doctorData = data.data || data.doctor || data;
 
-                // Handle array response
+                // Handle array response (shouldn't happen with user-specific endpoint, but just in case)
                 if (Array.isArray(doctorData) && doctorData.length > 0) {
                     doctorData = doctorData[0];
                 }
 
-                // Pre-populate form with existing data
-                if (doctorData) {
+                // Only pre-populate if we have valid data for THIS user
+                if (doctorData && doctorData.userId === userId) {
                     setProfileData({
                         name: doctorData.name || '',
                         email: doctorData.email || '',
@@ -122,11 +166,17 @@ const DoctorProfileSetupScreen = () => {
                         address: doctorData.address || { street: '', city: '' },
                         pmdcRegistrationNumber: doctorData.pmdcRegistrationNumber || '',
                         experience: doctorData.experience ? String(doctorData.experience) : '',
+                        speciality: doctorData.speciality || '',
+                        specialityId: doctorData.specialityId || '',
+                        services: doctorData.services || [],
+                        consultationTime: doctorData.consultationTime ? String(doctorData.consultationTime) : '15',
                         locations: doctorData.locations || [],
                         education: doctorData.education || [],
                         availability: doctorData.availability || []
                     });
-                    console.log('Profile data pre-populated successfully');
+                    console.log('Profile data pre-populated successfully for user:', userId);
+                } else {
+                    console.log('Profile data does not match current user, starting fresh');
                 }
             } else {
                 console.log('No existing profile found, starting fresh');
@@ -144,7 +194,13 @@ const DoctorProfileSetupScreen = () => {
             return;
         }
 
-        if (!userId) {
+        // Get current userId and token from AsyncStorage
+        const storedUserId = await AsyncStorage.getItem('userId');
+        const storedToken = await AsyncStorage.getItem('token');
+        const finalUserId = storedUserId || routeUserId;
+        const finalToken = storedToken || routeToken || authToken;
+
+        if (!finalUserId) {
             Alert.alert('Error', 'User ID is missing. Please login again.');
             return;
         }
@@ -164,11 +220,16 @@ const DoctorProfileSetupScreen = () => {
             });
 
             const payload = {
-                userId: userId,
+                userId: finalUserId,
                 ...profileData,
                 locations: sanitizedLocations, // Use sanitized locations
-                // Ensure numbers are numbers if required by backend, user schema suggests strict types usually
+                // Ensure numbers are numbers if required by backend
                 experience: parseInt(profileData.experience) || 0,
+                consultationTime: parseInt(profileData.consultationTime) || 15,
+                // Ensure speciality fields are included
+                speciality: profileData.speciality,
+                specialityId: profileData.specialityId,
+                services: profileData.services,
             };
 
             console.log('=== DEBUG: Locations Array ===');
@@ -179,13 +240,13 @@ const DoctorProfileSetupScreen = () => {
             console.log('=== END DEBUG ===');
 
             console.log('Sending profile update with payload:', JSON.stringify(payload, null, 2));
-            console.log('Using token:', token);
+            console.log('Using token:', finalToken ? 'Token present' : 'No token');
 
             const response = await fetch('https://appbookingbackend.onrender.com/api/doctor/update-profile', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...(token && { 'Authorization': `Bearer ${token}` })
+                    ...(finalToken && { 'Authorization': `Bearer ${finalToken}` })
                 },
                 body: JSON.stringify(payload),
             });
@@ -289,6 +350,48 @@ const DoctorProfileSetupScreen = () => {
                 keyboardType="numeric"
                 value={profileData.experience}
                 onChangeText={(t) => updateProfile('experience', t)}
+            />
+
+            <Text style={styles.label}>Speciality</Text>
+            <View style={styles.pickerContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                    {specialities.map((spec, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={[
+                                styles.chip,
+                                profileData.specialityId === spec._id && styles.chipActive
+                            ]}
+                            onPress={() => {
+                                updateProfile('speciality', spec.speciality);
+                                updateProfile('specialityId', spec._id || '');
+                            }}
+                        >
+                            <Text style={[
+                                styles.chipText,
+                                profileData.specialityId === spec._id && styles.chipTextActive
+                            ]}>
+                                {spec.speciality}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
+            <TextInput
+                style={styles.input}
+                placeholder="Services (comma separated, e.g. Consultation, Surgery)"
+                value={profileData.services.join(', ')}
+                onChangeText={(t) => updateProfile('services', t.split(',').map(s => s.trim()).filter(s => s))}
+                multiline
+            />
+
+            <TextInput
+                style={styles.input}
+                placeholder="Consultation Time (minutes)"
+                keyboardType="numeric"
+                value={profileData.consultationTime}
+                onChangeText={(t) => updateProfile('consultationTime', t)}
             />
         </View>
     );
@@ -531,6 +634,9 @@ const styles = StyleSheet.create({
     footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
     nextButton: { backgroundColor: '#5B7FFF', padding: 16, borderRadius: 12, alignItems: 'center' },
     nextButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+    label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 8 },
+    pickerContainer: { marginBottom: 12 },
+    chipScroll: { flexGrow: 0 },
 });
 
 export default DoctorProfileSetupScreen;

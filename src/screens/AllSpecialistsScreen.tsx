@@ -1,27 +1,152 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    TouchableOpacity,
+    TextInput,
+    ActivityIndicator,
+    Image,
+    Modal,
+    FlatList
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { searchDoctors, getCities, Doctor } from '../services/doctorService';
+import { Calendar } from 'react-native-calendars';
+import { bookAppointment } from '../services/appointmentService';
+import DoctorProfileModal from '../components/DoctorProfileModal';
+import { Alert } from 'react-native';
 
-// Reusing the Specialist interface and data (ideally this should be in a shared data file)
-interface Specialist {
-    id: number;
-    name: string;
-    role: string;
-    rating: number;
-    color: string;
-}
-
-const SPECIALISTS: Specialist[] = [
-    { id: 1, name: 'Dr. Sarah Johnson', role: 'Clinical Psych', rating: 4.8, color: '#4ECDC4' },
-    { id: 2, name: 'Dr. Michael Chen', role: 'Psychiatrist', rating: 4.9, color: '#5B7FFF' },
-    { id: 3, name: 'Dr. Emma Wilson', role: 'Therapist', rating: 4.7, color: '#A78BFA' },
-    { id: 4, name: 'Dr. Robert Fox', role: 'Neurologist', rating: 4.9, color: '#FFB06B' }, // Added more for demo
-    { id: 5, name: 'Dr. Lily Evans', role: 'Psychologist', rating: 4.6, color: '#FF6B9D' },
-];
+// Debounce helper
+const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+};
 
 const AllSpecialistsScreen = () => {
     const navigation = useNavigation();
+    const route = useRoute();
+    const { initialQuery } = (route.params as { initialQuery?: string }) || {};
+
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [query, setQuery] = useState(initialQuery || '');
+    const [cities, setCities] = useState<string[]>([]);
+    const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
+
+    // Booking State
+    const [modalVisible, setModalVisible] = useState(false);
+    const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [bookingReason, setBookingReason] = useState('');
+    const [appointmentTypeFilter, setAppointmentTypeFilter] = useState<'online' | 'physical' | null>(null);
+
+    // Profile Modal State
+    const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
+    // patientId should ideally come from auth context/storage
+    const [patientId, setPatientId] = useState<string | null>(null);
+
+    // Debounced search query to avoid too many API calls
+    const debouncedQuery = useDebounce(query, 500);
+
+    useEffect(() => {
+        fetchCities();
+    }, []);
+
+    useEffect(() => {
+        fetchDoctors();
+    }, [debouncedQuery, selectedCity]);
+
+    const fetchCities = async () => {
+        const cityList = await getCities();
+        setCities(cityList);
+    };
+
+    const fetchDoctors = async () => {
+        setLoading(true);
+        try {
+            const results = await searchDoctors({
+                search: debouncedQuery,
+                city: selectedCity
+            });
+            setDoctors(results);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const clearFilters = () => {
+        setQuery('');
+        setSelectedCity(undefined);
+    };
+
+    // Handlers
+    const handleProfilePress = (doctor: Doctor) => {
+        setSelectedDoctor(doctor);
+        setIsProfileModalVisible(true);
+    };
+
+    const handleSpecialistBookPress = (doctor: Doctor, type: 'online' | 'physical') => {
+        setSelectedDoctor(doctor);
+        setAppointmentTypeFilter(type);
+        setModalVisible(true);
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setBookingReason('');
+    };
+
+    const handleBookFromProfile = () => {
+        setIsProfileModalVisible(false);
+        // Default to online if booked from profile generic button, or show choice?
+        // For now, default to no filter or 'online'
+        setAppointmentTypeFilter(null);
+        setModalVisible(true);
+    };
+
+    const handleDetailView = () => {
+        setIsProfileModalVisible(false);
+        Alert.alert("Doctor Details", `More info about Dr. ${selectedDoctor?.name}`);
+    };
+
+    const handleScheduleAppointment = async () => {
+        if (!selectedDoctor || !selectedDate || !selectedTime) {
+            Alert.alert("Missing Info", "Please select a Doctor, Date and Time.");
+            return;
+        }
+
+        const currentPatientId = patientId || "66a3d1234567890abcdef123"; // TODO: Get actual patient ID
+
+        setLoading(true); // Re-using loading state for booking
+        try {
+            await bookAppointment({
+                patientId: currentPatientId,
+                doctorId: selectedDoctor.doctorId,
+                date: selectedDate,
+                timeSlot: { startTime: selectedTime, endTime: "00:00" },
+                reason: bookingReason || "General Consultation"
+            });
+
+            setModalVisible(false);
+            Alert.alert("Success", "Appointment booked successfully!", [
+                { text: "OK", onPress: () => navigation.navigate('Appointment' as never) }
+            ]);
+
+            setBookingReason('');
+            setSelectedDate(null);
+            setSelectedTime(null);
+        } catch (error: any) {
+            Alert.alert("Booking Failed", error.message || "Something went wrong.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -30,32 +155,222 @@ const AllSpecialistsScreen = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Icon name="arrow-back" size={24} color="#1A1F3A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>All Specialists</Text>
+                <Text style={styles.headerTitle}>Find Specialist</Text>
                 <View style={{ width: 24 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.listContainer} showsVerticalScrollIndicator={false}>
-                {SPECIALISTS.map((specialist, index) => (
-                    <View key={specialist.id} style={styles.cardWrapper}>
-                        <View style={styles.specialistCard}>
-                            <View style={styles.doctorImageContainer}>
-                                <Icon name="person-circle" size={60} color={specialist.color} />
-                            </View>
-                            <View style={styles.cardInfo}>
-                                <Text style={styles.doctorName}>{specialist.name}</Text>
-                                <Text style={styles.specialityText}>{specialist.role}</Text>
-                                <View style={styles.ratingContainer}>
-                                    <Icon name="star" size={14} color="#FFD700" />
-                                    <Text style={styles.ratingText}>{specialist.rating} (120+ Reviews)</Text>
-                                </View>
-                            </View>
-                            <TouchableOpacity style={styles.bookButton}>
-                                <Text style={styles.bookButtonText}>Book</Text>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+                <Icon name="search-outline" size={20} color="#999" />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search name, speciality..."
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholderTextColor="#999"
+                />
+                {query.length > 0 && (
+                    <TouchableOpacity onPress={() => setQuery('')}>
+                        <Icon name="close-circle" size={18} color="#999" />
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {/* Filters */}
+            {cities.length > 0 && (
+                <View style={styles.filtersContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <TouchableOpacity
+                            style={[
+                                styles.filterChip,
+                                !selectedCity && styles.filterChipSelected
+                            ]}
+                            onPress={() => setSelectedCity(undefined)}
+                        >
+                            <Text style={[
+                                styles.filterText,
+                                !selectedCity && styles.filterTextSelected
+                            ]}>All Cities</Text>
+                        </TouchableOpacity>
+
+                        {cities.map((city, index) => (
+                            <TouchableOpacity
+                                key={index}
+                                style={[
+                                    styles.filterChip,
+                                    selectedCity === city && styles.filterChipSelected
+                                ]}
+                                onPress={() => setSelectedCity(city)}
+                            >
+                                <Text style={[
+                                    styles.filterText,
+                                    selectedCity === city && styles.filterTextSelected
+                                ]}>{city}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+
+            {/* Content */}
+            {loading ? (
+                <View style={styles.centerContainer}>
+                    <ActivityIndicator size="large" color="#5B7FFF" />
+                </View>
+            ) : (
+                <FlatList
+                    data={doctors}
+                    keyExtractor={(item) => item.doctorId}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Icon name="search" size={50} color="#EEE" />
+                            <Text style={styles.emptyText}>No specialists found</Text>
+                            <TouchableOpacity onPress={clearFilters}>
+                                <Text style={styles.clearText}>Clear Filters</Text>
                             </TouchableOpacity>
                         </View>
-                    </View>
-                ))}
-            </ScrollView>
+                    }
+                    renderItem={({ item }) => (
+                        <View style={styles.specialistCard}>
+                            <TouchableOpacity onPress={() => handleProfilePress(item)} style={styles.doctorImageContainer}>
+                                <Icon name="person-circle" size={60} color={item.color || '#5B7FFF'} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleProfilePress(item)} style={styles.cardInfo}>
+                                <Text style={styles.doctorName}>{item.name}</Text>
+                                <Text style={styles.specialityText}>{item.role}</Text>
+                                {item.city && (
+                                    <Text style={styles.locationText}>
+                                        <Icon name="location-outline" size={12} /> {item.city}
+                                    </Text>
+                                )}
+                                <View style={styles.ratingContainer}>
+                                    <Icon name="star" size={14} color="#FFD700" />
+                                    <Text style={styles.ratingText}>
+                                        {item.rating ? item.rating.toFixed(1) : 'New'}
+                                        {item.experience ? ` • ${item.experience} yrs exp` : ''}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                            <View style={styles.cardActionsColumn}>
+                                <TouchableOpacity
+                                    style={[styles.smallBookBtn, styles.onlineBtn]}
+                                    onPress={() => handleSpecialistBookPress(item, 'online')}
+                                >
+                                    <Text style={styles.btnTextWhite}>Online</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.smallBookBtn, styles.clinicBtn]}
+                                    onPress={() => handleSpecialistBookPress(item, 'physical')}
+                                >
+                                    <Text style={styles.btnTextBlue}>Clinic</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+                />
+            )}
+            {/* Doctor Profile Modal */}
+            <DoctorProfileModal
+                visible={isProfileModalVisible}
+                onClose={() => setIsProfileModalVisible(false)}
+                doctor={selectedDoctor}
+                onBook={handleBookFromProfile}
+                onDetail={handleDetailView}
+            />
+
+            {/* Booking Modal */}
+            <Modal
+                transparent={true}
+                visible={modalVisible}
+                animationType="slide"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+                        <Text style={styles.modalTitle}>Schedule Appointment</Text>
+
+                        {/* Calendar */}
+                        <Text style={styles.sectionLabel}>Select Date</Text>
+                        <View style={styles.calendarWrapper}>
+                            <Calendar
+                                onDayPress={(day: { dateString: string }) => setSelectedDate(day.dateString)}
+                                markedDates={{
+                                    [selectedDate || '']: { selected: true, selectedColor: '#5B7FFF' }
+                                }}
+                                minDate={new Date().toISOString().split('T')[0]}
+                                theme={{
+                                    selectedDayBackgroundColor: '#5B7FFF',
+                                    todayTextColor: '#5B7FFF',
+                                    arrowColor: '#5B7FFF',
+                                }}
+                            />
+                        </View>
+
+                        {/* Slots */}
+                        <Text style={styles.sectionLabel}>Available Slots</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                            {selectedDoctor?.availability?.filter(slot => {
+                                if (!appointmentTypeFilter) return true;
+                                const slotType = slot.appointmentType ? slot.appointmentType.toLowerCase() : '';
+                                if (appointmentTypeFilter === 'online') return slotType === 'online';
+                                if (appointmentTypeFilter === 'physical') return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                return true;
+                            }).map((slot, index) => {
+                                const isSelected = selectedTime === slot.startTime;
+                                return (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[styles.slotChip, isSelected && styles.slotChipSelected]}
+                                        onPress={() => setSelectedTime(slot.startTime)}
+                                    >
+                                        <Text style={[styles.slotText, isSelected && styles.textSelected]}>
+                                            {slot.startTime} - {slot.endTime} ({slot.appointmentType})
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                            {(!selectedDoctor?.availability || selectedDoctor.availability.length === 0) && (
+                                <Text style={styles.slotText}>No slots available.</Text>
+                            )}
+                        </ScrollView>
+
+                        {/* Reason */}
+                        <View style={{ marginTop: 16 }}>
+                            <Text style={styles.fieldLabel}>Reason</Text>
+                            <TextInput
+                                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+                                placeholder="Reason..."
+                                multiline
+                                value={bookingReason}
+                                onChangeText={setBookingReason}
+                            />
+                        </View>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={() => setModalVisible(false)}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.confirmButton]}
+                                onPress={handleScheduleAppointment}
+                                disabled={loading}
+                            >
+                                {loading && selectedDate ? (
+                                    <ActivityIndicator color="#FFF" />
+                                ) : (
+                                    <Text style={styles.confirmButtonText}>Book</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ height: 20 }} />
+                    </ScrollView>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -74,80 +389,196 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#F0F0F0',
     },
-    backButton: {
-        padding: 4,
+    backButton: { padding: 4 },
+    headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1F3A' },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F6F8',
+        marginHorizontal: 16,
+        marginTop: 16,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        height: 44,
     },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1A1F3A',
+    searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: '#333' },
+    filtersContainer: {
+        marginTop: 16,
+        paddingLeft: 16,
+        paddingBottom: 8,
     },
-    listContainer: {
-        padding: 16,
-        gap: 16,
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#F5F6F8',
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: '#EEE',
     },
-    cardWrapper: {
-        marginBottom: 16,
+    filterChipSelected: {
+        backgroundColor: '#5B7FFF',
+        borderColor: '#5B7FFF',
     },
+    filterText: {
+        fontSize: 13,
+        color: '#666',
+        fontWeight: '500',
+    },
+    filterTextSelected: {
+        color: '#FFF',
+    },
+    listContainer: { padding: 16, gap: 16 },
     specialistCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
-        borderRadius: 20, // Neumorphic
+        borderRadius: 20,
         padding: 16,
-        // Neumorphic Shadow
         shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
         shadowRadius: 12,
         elevation: 5,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#F0F0F0',
     },
-    doctorImageContainer: {
-        marginRight: 16,
-    },
-    cardInfo: {
-        flex: 1,
-    },
-    doctorName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1A1F3A',
-        marginBottom: 4,
-    },
-    specialityText: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 8,
-    },
-    ratingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    ratingText: {
-        fontSize: 12,
-        color: '#666',
-        fontWeight: '600',
-    },
+    doctorImageContainer: { marginRight: 16 },
+    cardInfo: { flex: 1 },
+    doctorName: { fontSize: 16, fontWeight: '700', color: '#1A1F3A', marginBottom: 4 },
+    specialityText: { fontSize: 14, color: '#5B7FFF', fontWeight: '600', marginBottom: 4 },
+    locationText: { fontSize: 12, color: '#999', marginBottom: 6 },
+    ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    ratingText: { fontSize: 12, color: '#666', fontWeight: '600' },
     bookButton: {
         backgroundColor: '#5B7FFF',
         paddingVertical: 10,
         paddingHorizontal: 16,
         borderRadius: 12,
-        shadowColor: "#5B7FFF",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
     },
-    bookButtonText: {
+    bookButtonText: { color: '#FFF', fontWeight: '700', fontSize: 12 },
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    emptyContainer: { alignItems: 'center', marginTop: 60 },
+    emptyText: { marginTop: 16, fontSize: 16, color: '#999', fontWeight: '500' },
+    clearText: { marginTop: 8, color: '#5B7FFF', fontWeight: '600' },
+
+    // New Styles for Actions & Modal
+    cardActionsColumn: {
+        gap: 8,
+        minWidth: 80,
+    },
+    smallBookBtn: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    onlineBtn: {
+        backgroundColor: '#5B7FFF',
+    },
+    clinicBtn: {
+        backgroundColor: '#FFF',
+        borderWidth: 1,
+        borderColor: '#5B7FFF',
+    },
+    btnTextWhite: {
         color: '#FFF',
+        fontSize: 11,
         fontWeight: '700',
-        fontSize: 12,
     },
+    btnTextBlue: {
+        color: '#5B7FFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+
+    // Modal Styles (simplified copy from Home)
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFF',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        height: '85%',
+        padding: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1A1F3A',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    sectionLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1A1F3A',
+        marginTop: 16,
+        marginBottom: 12,
+    },
+    calendarWrapper: {
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    slotsGrid: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    slotChip: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        backgroundColor: '#FFF',
+        marginRight: 8,
+    },
+    slotChipSelected: {
+        backgroundColor: '#5B7FFF',
+        borderColor: '#5B7FFF',
+    },
+    slotText: {
+        fontSize: 12,
+        color: '#333',
+    },
+    textSelected: {
+        color: '#FFF',
+    },
+    fieldLabel: {
+        fontSize: 12,
+        marginBottom: 6,
+        color: '#333',
+        fontWeight: '600',
+    },
+    modalInput: {
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: 8,
+        padding: 12,
+        backgroundColor: '#F9F9F9',
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 20,
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    cancelButton: { backgroundColor: '#F0F0F0' },
+    confirmButton: { backgroundColor: '#5B7FFF' },
+    cancelButtonText: { color: '#666', fontWeight: '600' },
+    confirmButtonText: { color: '#FFF', fontWeight: '600' },
 });
 
 export default AllSpecialistsScreen;
