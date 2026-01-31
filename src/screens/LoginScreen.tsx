@@ -31,11 +31,6 @@ const LoginScreen = () => {
 
     const handleLogin = async () => {
         if (!whatsapp || !password) {
-            // Alert is not imported yet, so we will use it via React Native default or standard alert if available, 
-            // but checking the file imports, Alert is not imported. 
-            // I will add Alert to imports in a separate edit or assume standard Alert.
-            // Wait, looking at lines 2-11, Alert is NOT imported.
-            // I should use a multi-replace or separate edits, or just add Alert to the replacement and imports.
             Alert.alert('Error', 'Please fill in all fields');
             return;
         }
@@ -66,33 +61,50 @@ const LoginScreen = () => {
             console.log('Login response data:', JSON.stringify(data, null, 2));
 
             if (response.status === 200 || response.status === 201) {
-                // Assuming successful login returns some user data or token
-                // For now, navigating to Main
-                // Check if role is doctor (Ideally backend should tell us if profile is incomplete)
-                // For now, if current flow role is doctor, go to Setup.
-                const userRole = data.data?.role || role; // Fallback to route param if API doesn't return role (it should)
+                const userRole = data.data?.role || role;
 
                 if (userRole && userRole.toLowerCase() === 'doctor') {
-                    // Robustly extract userId and token
                     const userId = data.data?.userId || data.data?._id || data.data?.user?.userId || data.data?.user?._id || data.userId;
                     const token = data.data?.accessToken || data.data?.token || data.token || data.accessToken;
+                    const userWhatsapp = data.data?.user?.whatsappnumber || data.data?.whatsappnumber || formattedPhone;
 
                     console.log('Extracted userId:', userId);
                     console.log('Extracted token:', token);
 
-                    // Store authentication data in AsyncStorage
+                    // 1. Store authentication data in AsyncStorage
                     try {
                         await AsyncStorage.setItem('userId', userId || '');
                         await AsyncStorage.setItem('token', token || '');
                         await AsyncStorage.setItem('role', userRole);
-                        console.log('Stored auth data in AsyncStorage');
+                        await AsyncStorage.setItem('whatsappnumber', userWhatsapp);
+                        console.log('Stored auth data including whatsapp:', userWhatsapp);
                     } catch (storageError) {
                         console.error('Failed to store auth data:', storageError);
                     }
 
-                    // Check if doctor profile already exists
+                    // 2. Clear old doctorId and robustly check if doctor profile exists
+                    await AsyncStorage.removeItem('doctorId');
+
                     try {
-                        console.log('Checking if doctor profile exists...');
+                        console.log('Checking if doctor profile exists (robustly via WhatsApp)...');
+                        let doctor = null;
+
+                        // Normalization function for robust phone number matching
+                        const normalizePhone = (phone: string | undefined): string => {
+                            if (!phone) return '';
+                            // Remove all non-digits
+                            let clean = phone.replace(/\D/g, '');
+                            // Remove 92 prefix if present
+                            if (clean.startsWith('92')) clean = clean.substring(2);
+                            // Remove leading 0 if present
+                            if (clean.startsWith('0')) clean = clean.substring(1);
+                            return clean;
+                        };
+
+                        const normalizedUserWhatsapp = normalizePhone(userWhatsapp);
+                        console.log('Searching for doctor with normalized WhatsApp:', normalizedUserWhatsapp);
+
+                        // A. Try specific profile endpoint by userId first
                         const profileResponse = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
                             method: 'GET',
                             headers: {
@@ -101,75 +113,56 @@ const LoginScreen = () => {
                             }
                         });
 
-                        console.log('Profile check status:', profileResponse.status);
+                        if (profileResponse.ok) {
+                            const pData = await profileResponse.json();
+                            doctor = pData.data || pData.doctor || pData;
+                            if (Array.isArray(doctor) && doctor.length > 0) doctor = doctor[0];
+                            if (doctor) console.log('Found profile via userId endpoint');
+                        }
 
-                        if (profileResponse.status === 200 || profileResponse.status === 201) {
-                            const profileText = await profileResponse.text();
+                        // B. Fallback: Fetch all doctors and filter by normalized whatsappnumber
+                        if (!doctor) {
+                            console.log('Fallback: Filtering all doctors by normalized phone');
+                            const allResponse = await fetch('https://appbookingbackend.onrender.com/api/doctor', {
+                                method: 'GET',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
 
-                            // Try to parse as JSON
-                            try {
-                                const profileData = JSON.parse(profileText);
-                                let doctor = profileData.data || profileData.doctor || profileData;
-
-                                // Handle array response
-                                if (Array.isArray(doctor) && doctor.length > 0) {
-                                    doctor = doctor[0];
-                                }
-
-                                console.log('Doctor profile data:', JSON.stringify(doctor, null, 2));
-
-                                // Check if profile has essential fields for a complete profile
-                                // A complete profile should have:
-                                // 1. Basic info: name, email
-                                // 2. Professional info: pmdcRegistrationNumber (optional but recommended)
-                                // 3. At least one education entry (optional but recommended)
-                                // 4. At least one location (optional but recommended)
-                                // 5. At least one availability slot (optional but recommended)
-
-                                const hasBasicInfo = doctor && doctor.name && doctor.email;
-                                const hasEducation = doctor && doctor.education && Array.isArray(doctor.education) && doctor.education.length > 0;
-                                const hasLocations = doctor && doctor.locations && Array.isArray(doctor.locations) && doctor.locations.length > 0;
-                                const hasAvailability = doctor && doctor.availability && Array.isArray(doctor.availability) && doctor.availability.length > 0;
-
-                                // Consider profile complete if it has basic info
-                                // The other fields are optional but enhance the profile
-                                const isProfileComplete = hasBasicInfo;
-
-                                console.log('Profile completeness check:', {
-                                    hasBasicInfo,
-                                    hasEducation,
-                                    hasLocations,
-                                    hasAvailability,
-                                    isProfileComplete
-                                });
-
-                                if (isProfileComplete) {
-                                    console.log('Doctor profile is complete, navigating to Main');
-                                    navigation.reset({
-                                        index: 0,
-                                        routes: [{ name: 'Main' }],
+                            if (allResponse.ok) {
+                                const allData = await allResponse.json();
+                                const allDoctors = allData.data?.doctors || allData.data || allData;
+                                if (Array.isArray(allDoctors)) {
+                                    doctor = allDoctors.find((d: any) => {
+                                        const normalizedDPhone = normalizePhone(d.whatsappnumber);
+                                        return normalizedDPhone === normalizedUserWhatsapp && normalizedUserWhatsapp !== '';
                                     });
-                                    return;
-                                } else {
-                                    console.log('Doctor profile exists but is incomplete');
+                                    if (doctor) console.log('Found profile via normalized WhatsApp matching');
                                 }
-                            } catch (parseError) {
-                                console.log('Profile response is not JSON, profile likely does not exist');
                             }
                         }
 
-                        // If we reach here, profile doesn't exist or is incomplete
-                        console.log('Doctor profile does not exist or is incomplete, navigating to setup');
-                        navigation.reset({
-                            index: 0,
-                            routes: [{
-                                name: 'DoctorProfileSetup',
-                                params: { userId: userId, token: token }
-                            }],
-                        });
-                    } catch (profileCheckError) {
-                        console.error('Error checking profile:', profileCheckError);
-                        // On error, assume profile doesn't exist and go to setup
+                        if (doctor && (doctor._id || doctor.id || doctor.doctorId)) {
+                            console.log('Valid doctor profile linked:', doctor.name || doctor.email);
+                            const foundDoctorId = doctor._id || doctor.id || doctor.doctorId;
+                            await AsyncStorage.setItem('doctorId', foundDoctorId);
+                            console.log('Stored doctorId in AsyncStorage:', foundDoctorId);
+
+                            navigation.reset({
+                                index: 0,
+                                routes: [{ name: 'Main' }],
+                            });
+                        } else {
+                            console.log('No valid doctor profile found, navigating to setup');
+                            navigation.reset({
+                                index: 0,
+                                routes: [{
+                                    name: 'DoctorProfileSetup',
+                                    params: { userId: userId, token: token }
+                                }],
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Robust profile check failed:', error);
                         navigation.reset({
                             index: 0,
                             routes: [{
@@ -179,7 +172,7 @@ const LoginScreen = () => {
                         });
                     }
                 } else {
-                    // Store patient auth data
+                    // Patient flow
                     try {
                         const userId = data.data?.userId || data.data?._id || data.userId;
                         const token = data.data?.accessToken || data.data?.token || data.token;
@@ -196,7 +189,7 @@ const LoginScreen = () => {
                     });
                 }
             } else {
-                console.log('Login error data:', data);
+                console.log('Login error response:', data);
                 Alert.alert('Login Failed', data.message || 'Invalid credentials');
             }
         } catch (error) {

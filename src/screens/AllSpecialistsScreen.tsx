@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { searchDoctors, getCities, Doctor } from '../services/doctorService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { searchDoctors, getSpecialities, Doctor, Speciality } from '../services/doctorService';
 import { Calendar } from 'react-native-calendars';
 import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
@@ -32,21 +33,27 @@ const useDebounce = (value: string, delay: number) => {
 const AllSpecialistsScreen = () => {
     const navigation = useNavigation();
     const route = useRoute();
-    const { initialQuery } = (route.params as { initialQuery?: string }) || {};
+    const { initialQuery, specialityId } = (route.params as { initialQuery?: string; specialityId?: string }) || {};
 
     const [doctors, setDoctors] = useState<Doctor[]>([]);
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState(initialQuery || '');
-    const [cities, setCities] = useState<string[]>([]);
-    const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
+    const [specialities, setSpecialities] = useState<Speciality[]>([]);
+    const [selectedSpecialityId, setSelectedSpecialityId] = useState<string | undefined>(specialityId);
 
     // Booking State
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
     const [bookingReason, setBookingReason] = useState('');
     const [appointmentTypeFilter, setAppointmentTypeFilter] = useState<'online' | 'physical' | null>(null);
+
+    // Patient Form State
+    const [patientName, setPatientName] = useState('');
+    const [whatsappNumber, setWhatsappNumber] = useState('');
+    const [patientEmail, setPatientEmail] = useState('');
 
     // Profile Modal State
     const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
@@ -57,16 +64,16 @@ const AllSpecialistsScreen = () => {
     const debouncedQuery = useDebounce(query, 500);
 
     useEffect(() => {
-        fetchCities();
+        fetchSpecialities();
     }, []);
 
     useEffect(() => {
         fetchDoctors();
-    }, [debouncedQuery, selectedCity]);
+    }, [debouncedQuery, selectedSpecialityId]);
 
-    const fetchCities = async () => {
-        const cityList = await getCities();
-        setCities(cityList);
+    const fetchSpecialities = async () => {
+        const list = await getSpecialities();
+        setSpecialities(list);
     };
 
     const fetchDoctors = async () => {
@@ -74,7 +81,7 @@ const AllSpecialistsScreen = () => {
         try {
             const results = await searchDoctors({
                 search: debouncedQuery,
-                city: selectedCity
+                specialityId: selectedSpecialityId
             });
             setDoctors(results);
         } finally {
@@ -84,7 +91,7 @@ const AllSpecialistsScreen = () => {
 
     const clearFilters = () => {
         setQuery('');
-        setSelectedCity(undefined);
+        setSelectedSpecialityId(undefined);
     };
 
     // Handlers
@@ -100,6 +107,9 @@ const AllSpecialistsScreen = () => {
         setSelectedDate(null);
         setSelectedTime(null);
         setBookingReason('');
+        setPatientName('');
+        setWhatsappNumber('');
+        setPatientEmail('');
     };
 
     const handleBookFromProfile = () => {
@@ -116,28 +126,54 @@ const AllSpecialistsScreen = () => {
     };
 
     const handleScheduleAppointment = async () => {
-        if (!selectedDoctor || !selectedDate || !selectedTime) {
-            Alert.alert("Missing Info", "Please select a Doctor, Date and Time.");
+        if (!selectedDoctor) {
+            Alert.alert("Missing Info", "Please select a Doctor.");
+            return;
+        }
+        if (!selectedDate || !selectedTime) {
+            Alert.alert("Missing Info", "Please select a Date and Time.");
+            return;
+        }
+        if (!patientName.trim() || !whatsappNumber.trim() || !patientEmail.trim()) {
+            Alert.alert("Missing Info", "Please provide patient name, phone, and email.");
             return;
         }
 
-        const currentPatientId = patientId || "66a3d1234567890abcdef123"; // TODO: Get actual patient ID
-
-        setLoading(true); // Re-using loading state for booking
+        setLoading(true);
         try {
-            await bookAppointment({
-                patientId: currentPatientId,
+            const token = await AsyncStorage.getItem('token');
+            const isClinic = (appointmentTypeFilter || 'online') === 'physical';
+
+            let bookingPayload: any = {
                 doctorId: selectedDoctor.doctorId,
                 date: selectedDate,
-                timeSlot: { startTime: selectedTime, endTime: "00:00" },
+                timeSlot: selectedTime,
+                appointmentType: (isClinic && token) ? 'inclinic' : (appointmentTypeFilter || 'online'),
                 reason: bookingReason || "General Consultation"
-            });
+            };
+
+            // Only add patient details if NOT authenticated
+            if (!token) {
+                bookingPayload.patientName = patientName.trim();
+                bookingPayload.patientPhone = whatsappNumber.trim();
+                bookingPayload.patientEmail = patientEmail.trim();
+            }
+
+            // Only add locationId if it's a clinic visit
+            if (isClinic && selectedLocationId) {
+                bookingPayload.locationId = selectedLocationId;
+            }
+
+            await bookAppointment(bookingPayload, token);
 
             setModalVisible(false);
             Alert.alert("Success", "Appointment booked successfully!", [
                 { text: "OK", onPress: () => navigation.navigate('Appointment' as never) }
             ]);
 
+            setPatientName('');
+            setWhatsappNumber('');
+            setPatientEmail('');
             setBookingReason('');
             setSelectedDate(null);
             setSelectedTime(null);
@@ -164,7 +200,7 @@ const AllSpecialistsScreen = () => {
                 <Icon name="search-outline" size={20} color="#999" />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search name, speciality..."
+                    placeholder="Search doctors, specialists..."
                     value={query}
                     onChangeText={setQuery}
                     placeholderTextColor="#999"
@@ -177,35 +213,35 @@ const AllSpecialistsScreen = () => {
             </View>
 
             {/* Filters */}
-            {cities.length > 0 && (
+            {specialities.length > 0 && (
                 <View style={styles.filtersContainer}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <TouchableOpacity
                             style={[
                                 styles.filterChip,
-                                !selectedCity && styles.filterChipSelected
+                                !selectedSpecialityId && styles.filterChipSelected
                             ]}
-                            onPress={() => setSelectedCity(undefined)}
+                            onPress={() => setSelectedSpecialityId(undefined)}
                         >
                             <Text style={[
                                 styles.filterText,
-                                !selectedCity && styles.filterTextSelected
-                            ]}>All Cities</Text>
+                                !selectedSpecialityId && styles.filterTextSelected
+                            ]}>All Specialities</Text>
                         </TouchableOpacity>
 
-                        {cities.map((city, index) => (
+                        {specialities.map((spec, index) => (
                             <TouchableOpacity
-                                key={index}
+                                key={spec._id || index}
                                 style={[
                                     styles.filterChip,
-                                    selectedCity === city && styles.filterChipSelected
+                                    selectedSpecialityId === spec._id && styles.filterChipSelected
                                 ]}
-                                onPress={() => setSelectedCity(city)}
+                                onPress={() => setSelectedSpecialityId(spec._id)}
                             >
                                 <Text style={[
                                     styles.filterText,
-                                    selectedCity === city && styles.filterTextSelected
-                                ]}>{city}</Text>
+                                    selectedSpecialityId === spec._id && styles.filterTextSelected
+                                ]}>{spec.speciality}</Text>
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
@@ -314,8 +350,14 @@ const AllSpecialistsScreen = () => {
                             {selectedDoctor?.availability?.filter(slot => {
                                 if (!appointmentTypeFilter) return true;
                                 const slotType = slot.appointmentType ? slot.appointmentType.toLowerCase() : '';
-                                if (appointmentTypeFilter === 'online') return slotType === 'online';
-                                if (appointmentTypeFilter === 'physical') return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                const filterType = appointmentTypeFilter.toLowerCase();
+
+                                if (filterType === 'online') {
+                                    return slotType === 'online';
+                                }
+                                if (filterType === 'physical') {
+                                    return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                }
                                 return true;
                             }).map((slot, index) => {
                                 const isSelected = selectedTime === slot.startTime;
@@ -323,10 +365,13 @@ const AllSpecialistsScreen = () => {
                                     <TouchableOpacity
                                         key={index}
                                         style={[styles.slotChip, isSelected && styles.slotChipSelected]}
-                                        onPress={() => setSelectedTime(slot.startTime)}
+                                        onPress={() => {
+                                            setSelectedTime(slot.startTime);
+                                            setSelectedLocationId((slot as any).locationId || null);
+                                        }}
                                     >
                                         <Text style={[styles.slotText, isSelected && styles.textSelected]}>
-                                            {slot.startTime} - {slot.endTime} ({slot.appointmentType})
+                                            {slot.startTime} - {slot.endTime} ({slot.appointmentType || 'Consultation'})
                                         </Text>
                                     </TouchableOpacity>
                                 );
@@ -336,7 +381,40 @@ const AllSpecialistsScreen = () => {
                             )}
                         </ScrollView>
 
-                        {/* Reason */}
+                        {/* Patient Information */}
+                        <Text style={styles.sectionLabel}>Patient Information</Text>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.fieldLabel}>Full Name</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter patient's full name"
+                                value={patientName}
+                                onChangeText={setPatientName}
+                            />
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.fieldLabel}>Phone Number / WhatsApp</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter phone number"
+                                keyboardType="phone-pad"
+                                value={whatsappNumber}
+                                onChangeText={setWhatsappNumber}
+                            />
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.fieldLabel}>Email Address</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter email address"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                value={patientEmail}
+                                onChangeText={setPatientEmail}
+                            />
+                        </View>
                         <View style={{ marginTop: 16 }}>
                             <Text style={styles.fieldLabel}>Reason</Text>
                             <TextInput
@@ -556,6 +634,9 @@ const styles = StyleSheet.create({
         marginBottom: 6,
         color: '#333',
         fontWeight: '600',
+    },
+    inputGroup: {
+        marginBottom: 12,
     },
     modalInput: {
         borderWidth: 1,

@@ -68,7 +68,7 @@ const MainTabs = () => {
 const AppNavigator = () => {
     return (
         <Stack.Navigator
-            initialRouteName="Welcome"
+            initialRouteName="Main"
             screenOptions={{
                 headerShown: false,
             }}

@@ -3,16 +3,56 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Alert, Ima
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Doctor } from '../services/doctorService';
 
-interface DoctorProfileModalProps {
-    visible: boolean;
-    onClose: () => void;
-    doctor: Doctor | null;
-    onBook: () => void;
-    onDetail: () => void;
-}
-
-const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClose, doctor, onBook, onDetail }) => {
+const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClose, doctor, onBookType, onDetail }) => {
     if (!doctor) return null;
+
+    const formatEducation = (edu: any) => {
+        if (!edu) return "MBBS, FCPS";
+        if (typeof edu === 'string') return edu;
+        if (Array.isArray(edu)) {
+            if (edu.length === 0) return "MBBS, FCPS";
+            return edu.map(e => typeof e === 'string' ? e : e.degree).join(', ');
+        }
+        if (typeof edu === 'object') return edu.degree || "MBBS, FCPS";
+        return "MBBS, FCPS";
+    };
+
+    const renderEducationSection = () => {
+        const edu = doctor.education;
+        if (!edu || (Array.isArray(edu) && edu.length === 0)) {
+            return (
+                <View style={styles.infoRow}>
+                    <Icon name="school-outline" size={18} color="#666" style={{ marginTop: 2 }} />
+                    <Text style={styles.infoText}>MBBS, FCPS (Psychiatry)</Text>
+                </View>
+            );
+        }
+
+        if (typeof edu === 'string') {
+            return (
+                <View style={styles.infoRow}>
+                    <Icon name="school-outline" size={18} color="#666" style={{ marginTop: 2 }} />
+                    <Text style={styles.infoText}>{edu}</Text>
+                </View>
+            );
+        }
+
+        if (Array.isArray(edu)) {
+            return edu.map((e, index) => (
+                <View key={index} style={[styles.infoRow, index > 0 && { marginTop: 8 }]}>
+                    <Icon name="school-outline" size={18} color="#666" style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.infoText}>{typeof e === 'string' ? e : e.degree}</Text>
+                        {typeof e === 'object' && e.institute && (
+                            <Text style={styles.subInfoText}>{e.institute} ({e.startYear} - {e.endYear})</Text>
+                        )}
+                    </View>
+                </View>
+            ));
+        }
+
+        return null;
+    };
 
     return (
         <Modal
@@ -35,7 +75,7 @@ const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClos
                             </View>
                             <Text style={styles.doctorName}>{doctor.name}</Text>
                             <Text style={styles.doctorSpecialty}>{doctor.specialization || doctor.role}</Text>
-                            <Text style={styles.doctorEducation}>{doctor.education || "MBBS, FCPS"}</Text>
+                            <Text style={styles.doctorEducation}>{formatEducation(doctor.education)}</Text>
                         </View>
 
                         {/* Stats Row */}
@@ -65,10 +105,7 @@ const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClos
                         {/* Education & Experience */}
                         <View style={styles.sectionContainer}>
                             <Text style={styles.sectionTitle}>Education & Experience</Text>
-                            <View style={styles.infoRow}>
-                                <Icon name="school-outline" size={18} color="#666" style={{ marginTop: 2 }} />
-                                <Text style={styles.infoText}>{doctor.education || "MBBS, FCPS (Psychiatry)"}</Text>
-                            </View>
+                            {renderEducationSection()}
                             <View style={[styles.infoRow, { marginTop: 8 }]}>
                                 <Icon name="briefcase-outline" size={18} color="#666" style={{ marginTop: 2 }} />
                                 <Text style={styles.infoText}>{doctor.experience ? `${doctor.experience} Years Experience` : "Experienced Specialist"}</Text>
@@ -105,9 +142,13 @@ const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClos
 
                         {/* Actions */}
                         <View style={styles.actionButtons}>
-                            <TouchableOpacity style={styles.primaryButton} onPress={onBook}>
-                                <Icon name="calendar-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                                <Text style={styles.primaryButtonText}>Book Appointment</Text>
+                            <TouchableOpacity style={[styles.primaryButton, { flex: 1, backgroundColor: '#5B7FFF' }]} onPress={() => onBookType('online')}>
+                                <Icon name="videocam-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                                <Text style={styles.primaryButtonText}>Online</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.primaryButton, { flex: 1, backgroundColor: '#4ECDC4' }]} onPress={() => onBookType('physical')}>
+                                <Icon name="medkit-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                                <Text style={styles.primaryButtonText}>In-Clinic</Text>
                             </TouchableOpacity>
                         </View>
                     </ScrollView>
@@ -213,8 +254,10 @@ const styles = StyleSheet.create({
         color: '#888',
     },
     actionButtons: {
+        flexDirection: 'row',
         gap: 12,
-        marginTop: 10
+        marginTop: 10,
+        marginBottom: 20,
     },
     primaryButton: {
         backgroundColor: '#5DADEC',
@@ -273,6 +316,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#333',
         flex: 1,
+    },
+    subInfoText: {
+        fontSize: 12,
+        color: '#888',
+        marginTop: 2,
     },
     availabilityContainer: {
         flexDirection: 'row',

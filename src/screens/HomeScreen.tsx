@@ -18,7 +18,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
-import { searchDoctors, Doctor } from '../services/doctorService';
+import { searchDoctors, Doctor, getSpecialities, Speciality, getCities, getMajorCities } from '../services/doctorService';
 import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -130,6 +130,8 @@ const HomeScreen = () => {
     const [topSpecialists, setTopSpecialists] = useState<Doctor[]>([]);
     const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]); // For the dropdown
     const [loading, setLoading] = useState(false);
+    const [specialities, setSpecialities] = useState<Speciality[]>([]);
+    const [selectedSpeciality, setSelectedSpeciality] = useState<string | null>(null);
 
     // Booking State
     const [bookingType, setBookingType] = useState<'specialist' | 'service'>('service');
@@ -137,6 +139,7 @@ const HomeScreen = () => {
     const [selectedDepartment, setSelectedDepartment] = useState('');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null); // New field for in-clinic booking
     const [bookingReason, setBookingReason] = useState(''); // New field for reason
     const [appointmentTypeFilter, setAppointmentTypeFilter] = useState<'online' | 'physical' | null>(null); // New filter state
 
@@ -222,13 +225,25 @@ const HomeScreen = () => {
         });
     };
 
-    const handleDrawerNav = (screen: string) => {
-        closeDrawer(() => navigation.navigate(screen as never));
+    const handleDrawerNav = (screen: string, params?: any) => {
+        closeDrawer(() => navigation.navigate(screen as never, params as never));
+    };
+
+    const handleLogout = async () => {
+        await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
+        setIsLoggedIn(false);
+        closeDrawer(() => {
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Main' }],
+            } as any);
+        });
     };
 
     // Patient Form State
     const [patientName, setPatientName] = useState('');
     const [whatsappNumber, setWhatsappNumber] = useState('');
+    const [patientEmail, setPatientEmail] = useState('');
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -242,9 +257,17 @@ const HomeScreen = () => {
     const navigation = useNavigation();
 
     // Location State
-    const [selectedLocation, setSelectedLocation] = useState('New York, USA');
+    const [selectedLocation, setSelectedLocation] = useState('All Pakistan');
     const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
-    const LOCATIONS = ["New York, USA", "London, UK", "Toronto, Canada", "Berlin, Germany"];
+    const [cities, setCities] = useState<string[]>([]);
+    const [majorCities, setMajorCities] = useState<string[]>([]);
+    const [isCityModalVisible, setIsCityModalVisible] = useState(false);
+    const [citySearchQuery, setCitySearchQuery] = useState('');
+
+    // Auto-suggest State
+    const [suggestedDoctors, setSuggestedDoctors] = useState<Doctor[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Fetch Top Specialists & Patient Info on Mount
     useEffect(() => {
@@ -262,14 +285,83 @@ const HomeScreen = () => {
                 console.error("Failed to fetch top specialists", err);
             }
 
-            // 2. Check Login (Mocking check for now, typically from AsyncStorage)
-            // const storedUser = await AsyncStorage.getItem('user');
-            // if (storedUser) { setIsLoggedIn(true); setPatientId(JSON.parse(storedUser).id); }
-            // For now, assuming user might be logged in or guest. 
-            // If user explicitly asked "login from patient module", we assume typical token check.
+            // 2. Fetch Specialities
+            try {
+                const specs = await getSpecialities();
+                console.log(`[DEBUG] Fetched ${specs.length} specialities`);
+                setSpecialities(specs);
+            } catch (err) {
+                console.error("Failed to fetch specialities", err);
+            }
+
+            // 3. Fetch Cities
+            try {
+                const citiesList = await getCities();
+                console.log(`[DEBUG] Fetched ${citiesList.length} cities`);
+                setCities(citiesList);
+                setMajorCities(getMajorCities());
+            } catch (err) {
+                console.error("Failed to fetch cities", err);
+            }
+
+            // 4. Check Login
+            const token = await AsyncStorage.getItem('token');
+            setIsLoggedIn(!!token);
         };
         init();
-    }, []);
+    }, [drawerVisible]);
+
+    // Refetch doctors when city changes
+    useEffect(() => {
+        const fetchDoctorsByCity = async () => {
+            try {
+                setLoading(true);
+                const cityParam = selectedLocation === 'All Pakistan' ? undefined : selectedLocation;
+                const doctors = await searchDoctors({ city: cityParam });
+                console.log(`[DEBUG] Fetched ${doctors.length} doctors for city: ${selectedLocation}`);
+                setTopSpecialists(doctors.slice(0, 5));
+            } catch (err) {
+                console.error("Failed to fetch doctors by city", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // Only fetch if cities have been loaded (to avoid initial double fetch)
+        if (cities.length > 0) {
+            fetchDoctorsByCity();
+        }
+    }, [selectedLocation, cities.length]);
+
+    // Auto-suggest search with debouncing
+    useEffect(() => {
+        const performSearch = async () => {
+            if (searchQuery.trim().length >= 3) {
+                setIsSearching(true);
+                setShowSuggestions(true);
+                try {
+                    const results = await searchDoctors({
+                        search: searchQuery,
+                        city: selectedLocation === 'All Pakistan' ? undefined : selectedLocation
+                    });
+                    console.log(`[DEBUG] Auto-suggest found ${results.length} doctors for query: "${searchQuery}"`);
+                    setSuggestedDoctors(results.slice(0, 5)); // Show top 5 suggestions
+                } catch (err) {
+                    console.error('Auto-suggest search failed:', err);
+                    setSuggestedDoctors([]);
+                } finally {
+                    setIsSearching(false);
+                }
+            } else {
+                setSuggestedDoctors([]);
+                setShowSuggestions(false);
+            }
+        };
+
+        // Debounce the search
+        const timeoutId = setTimeout(performSearch, 300);
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery, selectedLocation]);
 
     // Handlers
     const handleSpecialistBookPress = (doctor: Doctor, type: 'online' | 'physical') => {
@@ -291,20 +383,21 @@ const HomeScreen = () => {
         setLoading(true);
 
         // Map service name to filters
-        let appointmentTypeFilter = '';
+        let currentTypeFilter = '';
         let targetDept = '';
 
         if (serviceName === 'Online Consultation') {
-            appointmentTypeFilter = 'online';
+            currentTypeFilter = 'online';
             targetDept = 'Clinical Psychology'; // Default or leave empty
         } else if (serviceName === 'In-Clinic Visit') {
-            appointmentTypeFilter = 'physical'; // Backend usually uses 'physical' or 'in-clinic'
+            currentTypeFilter = 'physical'; // Backend usually uses 'physical' or 'in-clinic'
         } else if (serviceName === 'Psychiatric Clinic') {
             targetDept = 'Psychiatry';
-            appointmentTypeFilter = 'physical';
+            currentTypeFilter = 'physical';
         }
 
         setSelectedDepartment(targetDept);
+        setAppointmentTypeFilter(currentTypeFilter as any);
 
         // Fetch doctors and filter by availability/type
         try {
@@ -323,18 +416,18 @@ const HomeScreen = () => {
                 }
 
                 // If we are looking for specific type, check availability
-                if (appointmentTypeFilter) {
+                if (currentTypeFilter) {
                     const hasType = doc.availability.some(slot => {
                         const slotType = slot.appointmentType ? slot.appointmentType.toLowerCase() : '';
                         // Check for various possible backend values
-                        const isMatch = slotType === appointmentTypeFilter.toLowerCase() ||
-                            (appointmentTypeFilter === 'physical' && (slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical')) ||
-                            (appointmentTypeFilter === 'online' && slotType === 'online');
+                        const isMatch = slotType === currentTypeFilter.toLowerCase() ||
+                            (currentTypeFilter === 'physical' && (slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical')) ||
+                            (currentTypeFilter === 'online' && slotType === 'online');
                         return isMatch;
                     });
 
                     if (!hasType) {
-                        console.log(`[DEBUG] Doctor ${doc.name} filtered out. Type filter: ${appointmentTypeFilter}. Doc available: ${JSON.stringify(doc.availability)}`);
+                        console.log(`[DEBUG] Doctor ${doc.name} filtered out. Type filter: ${currentTypeFilter}. Doc available: ${JSON.stringify(doc.availability)}`);
                     }
                     return hasType;
                 }
@@ -367,42 +460,53 @@ const HomeScreen = () => {
             Alert.alert("Missing Info", "Please select a Date and Time.");
             return;
         }
-
-        // If not logged in, we might need to stop or create a temporary patient ID?
-        // For this implementation, I will rely on provided patientId or prompt user.
-        // User request: "patientId" is required in body.
-        // I'll assume for now hardcoded ID if not logged in for testing, OR alert user to login.
-        // "69788103c4f00e0b6c079700" is a doctor ID from logs. I'll use a placeholder if null.
-
-        const currentPatientId = patientId || "66a3d1234567890abcdef123"; // FALLBACK/TEST ID
+        if (!patientName.trim() || !whatsappNumber.trim() || !patientEmail.trim()) {
+            Alert.alert("Missing Info", "Please provide patient name, phone, and email.");
+            return;
+        }
 
         setLoading(true);
         try {
-            await bookAppointment({
-                patientId: currentPatientId,
+            const token = await AsyncStorage.getItem('token');
+            const isClinic = (appointmentTypeFilter || 'online') === 'physical';
+
+            let bookingPayload: any = {
                 doctorId: selectedDoctor.doctorId,
                 date: selectedDate,
-                timeSlot: {
-                    startTime: selectedTime, // Simple string for now, backend might parse
-                    endTime: "00:00" // Backend expects object, sending valid structure
-                },
+                timeSlot: selectedTime,
+                appointmentType: (isClinic && token) ? 'inclinic' : (appointmentTypeFilter || 'online'),
                 reason: bookingReason || "General Consultation"
-            });
+            };
+
+            // Only add patient details if NOT authenticated
+            if (!token) {
+                bookingPayload.patientName = patientName.trim();
+                bookingPayload.patientPhone = whatsappNumber.trim();
+                bookingPayload.patientEmail = patientEmail.trim();
+            }
+
+            // Only add locationId if it's a clinic visit
+            if (isClinic && selectedLocationId) {
+                bookingPayload.locationId = selectedLocationId;
+            }
+
+            await bookAppointment(bookingPayload, token);
 
             setModalVisible(false);
             Alert.alert("Success", "Appointment booked successfully!", [
-                { text: "OK", onPress: () => navigation.navigate('Appointment' as never) } // Redirect to Appointment/Home
+                { text: "OK", onPress: () => navigation.navigate('Appointment' as never) }
             ]);
 
             // Reset
             setPatientName('');
             setWhatsappNumber('');
+            setPatientEmail('');
+            setBookingReason('');
             setSelectedDate(null);
             setSelectedTime(null);
-            setBookingReason('');
-
-        } catch (error: any) {
-            Alert.alert("Booking Failed", error.message || "Something went wrong.");
+        } catch (err: any) {
+            console.error("Booking error:", err);
+            Alert.alert("Booking Failed", err.message || "Something went wrong. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -463,15 +567,35 @@ const HomeScreen = () => {
                 {/* Location Dropdown Selection */}
                 {isLocationDropdownOpen && (
                     <View style={[styles.locationDropdown, { top: insets.top + 110 }]}>
-                        {LOCATIONS.map((loc, index) => (
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            nestedScrollEnabled={true}
+                        >
                             <TouchableOpacity
-                                key={index}
                                 style={styles.locationOption}
-                                onPress={() => { setSelectedLocation(loc); setIsLocationDropdownOpen(false); }}
+                                onPress={() => { setSelectedLocation('All Pakistan'); setIsLocationDropdownOpen(false); }}
                             >
-                                <Text style={styles.locationOptionText}>{loc}</Text>
+                                <Icon name="globe-outline" size={18} color="#2D5BFF" style={{ marginRight: 8 }} />
+                                <Text style={styles.locationOptionText}>All Pakistan</Text>
                             </TouchableOpacity>
-                        ))}
+                            {majorCities.map((city, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={styles.locationOption}
+                                    onPress={() => { setSelectedLocation(city); setIsLocationDropdownOpen(false); }}
+                                >
+                                    <Icon name="location-outline" size={18} color="#666" style={{ marginRight: 8 }} />
+                                    <Text style={styles.locationOptionText}>{city}</Text>
+                                </TouchableOpacity>
+                            ))}
+                            <TouchableOpacity
+                                style={styles.viewAllCitiesButton}
+                                onPress={() => { setIsCityModalVisible(true); setIsLocationDropdownOpen(false); }}
+                            >
+                                <Icon name="ellipsis-horizontal-circle" size={20} color="#2D5BFF" style={{ marginRight: 8 }} />
+                                <Text style={styles.viewAllCitiesText}>More</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
                     </View>
                 )}
 
@@ -481,17 +605,133 @@ const HomeScreen = () => {
                         <Icon name="search-outline" size={22} color="#999" />
                         <TextInput
                             style={styles.searchInput}
-                            placeholder="Find your specialist..."
+                            placeholder="Search doctors, specialists..."
                             placeholderTextColor="#999"
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            onSubmitEditing={() => navigation.navigate('AllSpecialists', { initialQuery: searchQuery } as never)}
+                            returnKeyType="search"
+                            onSubmitEditing={() => {
+                                if (searchQuery.length === 0 || searchQuery.length >= 3) {
+                                    setShowSuggestions(false);
+                                    navigation.navigate('AllSpecialists', { initialQuery: searchQuery } as never);
+                                }
+                            }}
+                            onFocus={() => {
+                                if (searchQuery.length >= 3) {
+                                    setShowSuggestions(true);
+                                }
+                            }}
                         />
+                        {searchQuery.length > 0 && searchQuery.length < 3 && (
+                            <Text style={styles.searchHelperText}>Min 3 chars</Text>
+                        )}
+                        {isSearching && (
+                            <ActivityIndicator size="small" color="#2D5BFF" />
+                        )}
                     </View>
-                    <TouchableOpacity style={styles.filterButton}>
-                        <Icon name="options-outline" size={24} color="#FFF" />
-                    </TouchableOpacity>
+
                 </View>
+
+                {/* Auto-suggest Dropdown */}
+                {showSuggestions && suggestedDoctors.length > 0 && (
+                    <View style={styles.suggestionsDropdown}>
+                        <ScrollView
+                            style={styles.suggestionsScrollView}
+                            keyboardShouldPersistTaps="handled"
+                            nestedScrollEnabled={true}
+                        >
+                            {suggestedDoctors.map((doctor, index) => (
+                                <TouchableOpacity
+                                    key={doctor.doctorId || index}
+                                    style={styles.suggestionItem}
+                                    onPress={() => {
+                                        setShowSuggestions(false);
+                                        setSelectedDoctor(doctor);
+                                        setIsProfileModalVisible(true);
+                                    }}
+                                >
+                                    <View style={[styles.suggestionAvatar, { backgroundColor: doctor.color || '#2D5BFF' }]}>
+                                        <Text style={styles.suggestionAvatarText}>
+                                            {doctor.name?.charAt(0) || 'D'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.suggestionInfo}>
+                                        <Text style={styles.suggestionName}>{doctor.name}</Text>
+                                        <Text style={styles.suggestionSpecialty}>
+                                            {doctor.speciality || doctor.role}
+                                        </Text>
+                                        {doctor.city && (
+                                            <Text style={styles.suggestionCity}>
+                                                <Icon name="location-outline" size={12} color="#999" /> {doctor.city}
+                                            </Text>
+                                        )}
+                                    </View>
+                                    <Icon name="chevron-forward" size={20} color="#999" />
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+
+                {/* Specialities Chips */}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.specialitiesContainer}
+                    contentContainerStyle={styles.specialitiesContent}
+                >
+                    {specialities.map((spec, index) => {
+                        const isSelected = selectedSpeciality === spec._id;
+
+                        // Icon mapping helper
+                        const getSpecialityIcon = (name: string) => {
+                            const n = name.toLowerCase();
+                            if (n.includes('heart') || n.includes('cardio')) return 'heart-outline';
+                            if (n.includes('tooth') || n.includes('dent')) return 'happy-outline'; // using happy as proxy for now
+                            if (n.includes('eye') || n.includes('opht')) return 'eye-outline';
+                            if (n.includes('skin') || n.includes('derm')) return 'body-outline';
+                            if (n.includes('bone') || n.includes('ortho')) return 'walk-outline';
+                            if (n.includes('brain') || n.includes('psych')) return 'headset-outline';
+                            if (n.includes('child') || n.includes('pedi')) return 'balloon-outline';
+                            if (n.includes('women') || n.includes('gyn')) return 'flower-outline';
+                            return 'pulse-outline'; // default
+                        };
+
+                        const iconName = getSpecialityIcon(spec.speciality);
+
+                        return (
+                            <TouchableOpacity
+                                key={spec._id || index}
+                                style={[styles.specialityChip, isSelected && styles.specialityChipSelected]}
+                                onPress={() => {
+                                    // Navigate to AllSpecialistsScreen with specialityId filter
+                                    navigation.navigate('AllSpecialists', {
+                                        specialityId: spec._id
+                                    } as never);
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.specialityIconContainer, isSelected && styles.specialityIconContainerSelected]}>
+                                    <Icon
+                                        name={iconName}
+                                        size={20}
+                                        color={isSelected ? "#FFF" : "#5B7FFF"}
+                                    />
+                                </View>
+                                <Text style={[styles.specialityChipText, isSelected && styles.specialityChipTextSelected]}>
+                                    {spec.speciality}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                    <TouchableOpacity
+                        style={styles.viewAllChip}
+                        onPress={() => navigation.navigate('AllSpecialists' as never)}
+                    >
+                        <Text style={styles.viewAllChipText}>View All</Text>
+                        <Icon name="chevron-forward" size={16} color="#666" />
+                    </TouchableOpacity>
+                </ScrollView>
             </View>
 
             <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -510,7 +750,7 @@ const HomeScreen = () => {
                     {/* Online Consultation */}
                     <AnimatedCard index={0} style={[styles.serviceCard, styles.blueCard]}>
                         <View style={styles.serviceIconContainer}>
-                            <Icon name="videocam" size={32} color="#5B7FFF" />
+                            <Icon name="videocam" size={24} color="#5B7FFF" />
                         </View>
                         <Text style={styles.serviceTitle}>Online{'\n'}Consultation</Text>
                         <View style={styles.serviceFooter}>
@@ -524,7 +764,7 @@ const HomeScreen = () => {
                     {/* In-Clinic Visit */}
                     <AnimatedCard index={1} style={[styles.serviceCard, styles.greenCard]}>
                         <View style={styles.serviceIconContainer}>
-                            <Icon name="medkit" size={32} color="#4ECDC4" />
+                            <Icon name="medkit" size={24} color="#4ECDC4" />
                         </View>
                         <Text style={styles.serviceTitle}>In-Clinic{'\n'}Visit</Text>
                         <View style={styles.serviceFooter}>
@@ -538,7 +778,7 @@ const HomeScreen = () => {
                     {/* Emergency Support */}
                     <AnimatedCard index={2} style={[styles.serviceCard, styles.orangeCard]}>
                         <View style={styles.serviceIconContainer}>
-                            <Icon name="alert-circle" size={32} color="#FF6B9D" />
+                            <Icon name="alert-circle" size={24} color="#FF6B9D" />
                         </View>
                         <Text style={styles.serviceTitle}>EMERGENCY{'\n'}SUPPORT</Text>
                         <View style={styles.serviceFooter}>
@@ -552,7 +792,7 @@ const HomeScreen = () => {
                     {/* Psychiatric Clinic */}
                     <AnimatedCard index={3} style={[styles.serviceCard, styles.purpleCard]}>
                         <View style={styles.serviceIconContainer}>
-                            <Icon name="clipboard" size={32} color="#A78BFA" />
+                            <Icon name="clipboard" size={24} color="#A78BFA" />
                         </View>
                         <Text style={styles.serviceTitle}>Psychiatric{'\n'}Clinic</Text>
                         <View style={styles.serviceFooter}>
@@ -580,7 +820,11 @@ const HomeScreen = () => {
                     decelerationRate="fast"
                     contentContainerStyle={{ paddingRight: 16 }}
                 >
-                    {topSpecialists.length > 0 ? (
+                    {loading ? (
+                        <View style={{ marginLeft: 20, paddingVertical: 40 }}>
+                            <ActivityIndicator size="large" color="#5B7FFF" />
+                        </View>
+                    ) : topSpecialists.length > 0 ? (
                         topSpecialists.map((specialist, index) => (
                             <AnimatedCard
                                 key={specialist.doctorId}
@@ -615,7 +859,19 @@ const HomeScreen = () => {
                             </AnimatedCard>
                         ))
                     ) : (
-                        <Text style={{ marginLeft: 20, color: '#999' }}>Loading specialists...</Text>
+                        <View style={{ marginLeft: 20, paddingVertical: 20 }}>
+                            <Text style={{ color: '#999', fontSize: 14 }}>
+                                No specialists found in {selectedLocation}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={() => setSelectedLocation('All Pakistan')}
+                                style={{ marginTop: 8 }}
+                            >
+                                <Text style={{ color: '#5B7FFF', fontSize: 14, fontWeight: '600' }}>
+                                    View all cities
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </ScrollView>
 
@@ -624,7 +880,12 @@ const HomeScreen = () => {
                     visible={isProfileModalVisible}
                     onClose={() => setIsProfileModalVisible(false)}
                     doctor={selectedDoctor}
-                    onBook={handleBookFromProfile}
+                    onBookType={(type) => {
+                        setIsProfileModalVisible(false); // Close profile
+                        if (selectedDoctor) {
+                            handleSpecialistBookPress(selectedDoctor, type);
+                        }
+                    }}
                     onDetail={handleDetailView}
                 />
 
@@ -714,6 +975,114 @@ const HomeScreen = () => {
                                     <Text style={styles.confirmButtonText}>Submit</Text>
                                 </TouchableOpacity>
                             </View>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* City Selection Modal */}
+                <Modal
+                    transparent={true}
+                    visible={isCityModalVisible}
+                    animationType="slide"
+                    onRequestClose={() => setIsCityModalVisible(false)}
+                >
+                    <View style={styles.cityModalOverlay}>
+                        <View style={styles.cityModalContent}>
+                            {/* Header */}
+                            <View style={styles.cityModalHeader}>
+                                <Text style={styles.cityModalTitle}>Select City</Text>
+                                <TouchableOpacity
+                                    onPress={() => setIsCityModalVisible(false)}
+                                    style={styles.cityModalCloseButton}
+                                >
+                                    <Icon name="close" size={24} color="#1A1F3A" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Search Bar */}
+                            <View style={styles.citySearchContainer}>
+                                <Icon name="search-outline" size={20} color="#999" />
+                                <TextInput
+                                    style={styles.citySearchInput}
+                                    placeholder="Search cities..."
+                                    placeholderTextColor="#999"
+                                    value={citySearchQuery}
+                                    onChangeText={setCitySearchQuery}
+                                />
+                                {citySearchQuery.length > 0 && (
+                                    <TouchableOpacity onPress={() => setCitySearchQuery('')}>
+                                        <Icon name="close-circle" size={20} color="#999" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+
+                            {/* Cities Grid */}
+                            <ScrollView
+                                style={styles.citiesScrollView}
+                                showsVerticalScrollIndicator={false}
+                                contentContainerStyle={styles.citiesGridContainer}
+                            >
+                                {/* All Pakistan Option */}
+                                <TouchableOpacity
+                                    style={[
+                                        styles.cityCard,
+                                        selectedLocation === 'All Pakistan' && styles.cityCardSelected
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedLocation('All Pakistan');
+                                        setIsCityModalVisible(false);
+                                        setCitySearchQuery('');
+                                    }}
+                                >
+                                    <Icon
+                                        name="globe"
+                                        size={28}
+                                        color={selectedLocation === 'All Pakistan' ? '#2D5BFF' : '#666'}
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.cityCardText,
+                                            selectedLocation === 'All Pakistan' && styles.cityCardTextSelected
+                                        ]}
+                                    >
+                                        All Pakistan
+                                    </Text>
+                                </TouchableOpacity>
+
+                                {/* Filtered Cities */}
+                                {cities
+                                    .filter(city =>
+                                        city.toLowerCase().includes(citySearchQuery.toLowerCase())
+                                    )
+                                    .map((city, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={[
+                                                styles.cityCard,
+                                                selectedLocation === city && styles.cityCardSelected
+                                            ]}
+                                            onPress={() => {
+                                                setSelectedLocation(city);
+                                                setIsCityModalVisible(false);
+                                                setCitySearchQuery('');
+                                            }}
+                                        >
+                                            <Icon
+                                                name="location"
+                                                size={28}
+                                                color={selectedLocation === city ? '#2D5BFF' : '#666'}
+                                            />
+                                            <Text
+                                                style={[
+                                                    styles.cityCardText,
+                                                    selectedLocation === city && styles.cityCardTextSelected
+                                                ]}
+                                            >
+                                                {city}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                            </ScrollView>
                         </View>
                     </View>
                 </Modal>
@@ -833,8 +1202,14 @@ const HomeScreen = () => {
                                 {selectedDoctor?.availability?.filter(slot => {
                                     if (!appointmentTypeFilter) return true;
                                     const slotType = slot.appointmentType ? slot.appointmentType.toLowerCase() : '';
-                                    if (appointmentTypeFilter === 'online') return slotType === 'online';
-                                    if (appointmentTypeFilter === 'physical') return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                    const filterType = appointmentTypeFilter.toLowerCase();
+
+                                    if (filterType === 'online') {
+                                        return slotType === 'online';
+                                    }
+                                    if (filterType === 'physical') {
+                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                    }
                                     return true;
                                 }).map((slot, index) => {
                                     const isSelected = selectedTime === slot.startTime;
@@ -842,10 +1217,13 @@ const HomeScreen = () => {
                                         <TouchableOpacity
                                             key={index}
                                             style={[styles.slotChip, isSelected && styles.slotChipSelected]}
-                                            onPress={() => setSelectedTime(slot.startTime)}
+                                            onPress={() => {
+                                                setSelectedTime(slot.startTime);
+                                                setSelectedLocationId((slot as any).locationId || null);
+                                            }}
                                         >
                                             <Text style={[styles.slotText, isSelected && styles.textSelected]}>
-                                                {slot.startTime} - {slot.endTime} ({slot.appointmentType})
+                                                {slot.startTime} - {slot.endTime} ({slot.appointmentType || 'Consultation'})
                                             </Text>
                                         </TouchableOpacity>
                                     );
@@ -856,7 +1234,42 @@ const HomeScreen = () => {
                                 )}
                             </ScrollView>
 
-                            {/* 4. Reason */}
+                            {/* 4. Patient Information */}
+                            <Text style={styles.sectionLabel}>Patient Information</Text>
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.fieldLabel}>Full Name</Text>
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Enter patient's full name"
+                                    value={patientName}
+                                    onChangeText={setPatientName}
+                                />
+                            </View>
+
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.fieldLabel}>Phone Number / WhatsApp</Text>
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Enter phone number"
+                                    keyboardType="phone-pad"
+                                    value={whatsappNumber}
+                                    onChangeText={setWhatsappNumber}
+                                />
+                            </View>
+
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.fieldLabel}>Email Address</Text>
+                                <TextInput
+                                    style={styles.modalInput}
+                                    placeholder="Enter email address"
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    value={patientEmail}
+                                    onChangeText={setPatientEmail}
+                                />
+                            </View>
+
+                            {/* 5. Reason */}
                             <View style={{ marginTop: 16 }}>
                                 <Text style={styles.fieldLabel}>Reason for Visit</Text>
                                 <TextInput
@@ -936,6 +1349,49 @@ const HomeScreen = () => {
                                     </TouchableOpacity>
                                 </Animated.View>
                             ))}
+
+                            {!isLoggedIn ? (
+                                <>
+                                    <Animated.View style={[styles.drawerItem, { opacity: item1Op, transform: [{ translateY: item1Anim }] }]}>
+                                        <TouchableOpacity
+                                            style={styles.drawerItemTouch}
+                                            onPress={() => handleDrawerNav('Signup', { role: 'doctor' })}
+                                        >
+                                            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
+                                                <Icon name="medical" size={22} color="#5B7FFF" />
+                                            </View>
+                                            <Text style={styles.drawerItemText}>Join as Doctor</Text>
+                                            <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
+                                        </TouchableOpacity>
+                                    </Animated.View>
+
+                                    <Animated.View style={[styles.drawerItem, { opacity: item2Op, transform: [{ translateY: item2Anim }] }]}>
+                                        <TouchableOpacity
+                                            style={styles.drawerItemTouch}
+                                            onPress={() => handleDrawerNav('Signup', { role: 'patient' })}
+                                        >
+                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+                                                <Icon name="person-add" size={22} color="#10B981" />
+                                            </View>
+                                            <Text style={styles.drawerItemText}>Join as Patient</Text>
+                                            <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
+                                        </TouchableOpacity>
+                                    </Animated.View>
+                                </>
+                            ) : (
+                                <Animated.View style={[styles.drawerItem, { opacity: item1Op, transform: [{ translateY: item1Anim }] }]}>
+                                    <TouchableOpacity
+                                        style={styles.drawerItemTouch}
+                                        onPress={handleLogout}
+                                    >
+                                        <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
+                                            <Icon name="log-out" size={22} color="#EF4444" />
+                                        </View>
+                                        <Text style={styles.drawerItemText}>Logout</Text>
+                                        <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
+                                    </TouchableOpacity>
+                                </Animated.View>
+                            )}
                         </View>
                     </Animated.View>
                     <TouchableOpacity style={styles.modalBackdrop} onPress={() => closeDrawer()} activeOpacity={1} />
@@ -1001,6 +1457,145 @@ const styles = StyleSheet.create({
         fontSize: 14, // Smaller as requested
         fontWeight: '600',
         color: '#1A1F3A',
+    },
+    locationDropdown: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 8,
+        maxHeight: 300,
+        zIndex: 1000,
+        paddingVertical: 8,
+    },
+    locationOption: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    locationOptionText: {
+        fontSize: 14,
+        color: '#1A1F3A',
+        fontWeight: '500',
+        flex: 1,
+    },
+    viewAllCitiesButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        backgroundColor: '#2D5BFF',
+        marginTop: 8,
+        marginHorizontal: 8,
+        borderRadius: 10,
+        justifyContent: 'center',
+        shadowColor: '#2D5BFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    viewAllCitiesText: {
+        fontSize: 16,
+        color: '#FFFFFF',
+        fontWeight: '700',
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    // City Selection Modal Styles
+    cityModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    cityModalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        height: '85%',
+        paddingTop: 20,
+    },
+    cityModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    cityModalTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#1A1F3A',
+    },
+    cityModalCloseButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#F5F7FA',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    citySearchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F7FA',
+        marginHorizontal: 20,
+        marginTop: 16,
+        marginBottom: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 12,
+        gap: 8,
+    },
+    citySearchInput: {
+        flex: 1,
+        fontSize: 15,
+        color: '#1A1F3A',
+        padding: 0,
+    },
+    citiesScrollView: {
+        flex: 1,
+    },
+    citiesGridContainer: {
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        justifyContent: 'space-between',
+    },
+    cityCard: {
+        width: '48%',
+        backgroundColor: '#F5F7FA',
+        borderRadius: 16,
+        padding: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 100,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    cityCardSelected: {
+        backgroundColor: '#E8EFFF',
+        borderColor: '#2D5BFF',
+    },
+    cityCardText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1A1F3A',
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    cityCardTextSelected: {
+        color: '#2D5BFF',
     },
     // Drawer Styles
     modalOverlay: {
@@ -1071,19 +1666,168 @@ const styles = StyleSheet.create({
         height: 50,
         gap: 10,
     },
+    inputContainer: {
+        marginTop: 12,
+    },
     searchInput: {
         flex: 1,
         fontSize: 16,
         color: '#333',
         height: '100%',
     },
-    filterButton: {
-        width: 50,
-        height: 50,
-        backgroundColor: '#2D5BFF', // Primary Blue
+    searchButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#2D5BFF',
         borderRadius: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        gap: 8,
+        height: 50,
+    },
+    searchButtonDisabled: {
+        backgroundColor: '#B0B0B0',
+        opacity: 0.6,
+    },
+    searchHelperText: {
+        fontSize: 11,
+        color: '#FF6B6B',
+        fontWeight: '500',
+        position: 'absolute',
+        right: 16,
+    },
+    // Auto-suggest Dropdown Styles
+    suggestionsDropdown: {
+        position: 'absolute',
+        top: 120,
+        left: 20,
+        right: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 8,
+        maxHeight: 300,
+        zIndex: 999,
+    },
+    suggestionsScrollView: {
+        maxHeight: 300,
+    },
+    suggestionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    suggestionAvatar: {
+        width: 45,
+        height: 45,
+        borderRadius: 22.5,
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: 12,
+    },
+    suggestionAvatarText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    suggestionInfo: {
+        flex: 1,
+    },
+    suggestionName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1A1F3A',
+        marginBottom: 2,
+    },
+    suggestionSpecialty: {
+        fontSize: 13,
+        color: '#666',
+        marginBottom: 2,
+    },
+    suggestionCity: {
+        fontSize: 12,
+        color: '#999',
+    },
+    searchButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    specialitiesContainer: {
+        marginTop: 16,
+        marginBottom: 0,
+    },
+    specialitiesContent: {
+        paddingHorizontal: 0,
+        gap: 10,
+    },
+    specialityChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        paddingRight: 16,
+        paddingLeft: 6, // Space for icon container
+        paddingVertical: 6,
+        borderRadius: 30,
+        marginRight: 10,
+        borderWidth: 1,
+        borderColor: '#F0F0F0',
+        // Shadow
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    specialityChipSelected: {
+        backgroundColor: '#5B7FFF', // Full filled color when selected? Or just border? Let's go with fill for attraction
+        borderColor: '#5B7FFF',
+    },
+    specialityIconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#E8EFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 10,
+    },
+    specialityIconContainerSelected: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
+    specialityIcon: {
+        // Removed
+    },
+    specialityChipText: {
+        fontSize: 14,
+        color: '#1A1F3A',
+        fontWeight: '600',
+    },
+    specialityChipTextSelected: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+    },
+    viewAllChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+    },
+    viewAllChipText: {
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '500',
+        marginRight: 4,
     },
     locationDropdown: {
         position: 'absolute',
@@ -1162,9 +1906,9 @@ const styles = StyleSheet.create({
     },
     serviceCard: {
         width: '47%', // Slightly smaller to leave room for shadows
-        borderRadius: 24,
-        padding: 18,
-        minHeight: 160,
+        borderRadius: 20,
+        padding: 14,
+        minHeight: 130,
         justifyContent: 'space-between',
         marginBottom: 8,
         // Neumorphism: Soft, diffuse shadow
@@ -1199,9 +1943,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.15,
     },
     serviceIconContainer: {
-        width: 50,
-        height: 50,
-        borderRadius: 16,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
@@ -1214,11 +1958,11 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     serviceTitle: {
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: '700',
         color: '#1A1F3A',
-        marginBottom: 8,
-        lineHeight: 22,
+        marginBottom: 6,
+        lineHeight: 18,
     },
     serviceFooter: {
         flexDirection: 'row',
@@ -1226,15 +1970,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     serviceSubtitle: {
-        fontSize: 9,
+        fontSize: 8,
         color: '#666',
         letterSpacing: 0.5,
         fontWeight: '600',
     },
     bookButton: {
         backgroundColor: '#FFFFFF',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
         borderRadius: 8,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -1246,7 +1990,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FF6B9D',
     },
     bookButtonText: {
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: '700',
         color: '#1A1F3A', // Dark text for contrast
     },
@@ -1403,12 +2147,6 @@ const styles = StyleSheet.create({
     authorLabel: {
         fontSize: 9,
         color: '#999',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end', // Slide from bottom or center
-        alignItems: 'center',
     },
     modalContent: {
         backgroundColor: '#FFF',

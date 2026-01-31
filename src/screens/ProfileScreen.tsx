@@ -51,89 +51,96 @@ const ProfileScreen = () => {
             }
 
 
-            // Try the new endpoint first: /api/doctor (without /profile)
-            console.log('Fetching from: https://appbookingbackend.onrender.com/api/doctor');
-            console.log('Using userId:', userId);
-            console.log('Using token:', token.substring(0, 20) + '...');
+            // Multi-layered fetching strategy for robustness
+            const doctorId = await AsyncStorage.getItem('doctorId');
+            let profileData = null;
 
-            const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            console.log('Response status:', response.status);
-            console.log('Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
-
-            // Get response text first
-            const responseText = await response.text();
-            console.log('Raw response:', responseText);
-
-            // Check if response is JSON
-            let data;
-            try {
-                data = JSON.parse(responseText);
-                console.log('Parsed JSON response:', JSON.stringify(data, null, 2));
-            } catch (parseError) {
-                console.error('Failed to parse JSON. Response was:', responseText.substring(0, 1000));
-
-                // If the endpoint doesn't exist or returns HTML, try alternative endpoint
-                console.log('Trying alternative endpoint with userId...');
+            // 1. Try fetching by doctorId if we have it
+            if (doctorId) {
                 try {
-                    const altResponse = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
+                    console.log(`Trying fetch by doctorId: ${doctorId}`);
+                    const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor/${doctorId}`, {
                         method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        }
+                        headers: { 'Authorization': `Bearer ${token}` }
                     });
-
-                    const altText = await altResponse.text();
-                    console.log('Alternative endpoint response:', altText);
-
-                    if (altResponse.status === 200 || altResponse.status === 201) {
-                        const altData = JSON.parse(altText);
-                        const profileData = altData.data || altData.doctor || altData;
-                        console.log('Profile data from alternative endpoint:', profileData);
-                        setProfile(profileData);
-                        setLoading(false);
-                        setRefreshing(false);
-                        return;
+                    if (response.ok) {
+                        const data = await response.json();
+                        profileData = data.data || data.doctor || data;
+                        console.log('Found profile via doctorId');
                     }
-                } catch (altError) {
-                    console.error('Alternative endpoint also failed:', altError);
+                } catch (e) {
+                    console.warn('Fetch by doctorId failed, trying next...');
                 }
-
-                setError('Server returned an invalid response. Please contact support.');
-                setLoading(false);
-                setRefreshing(false);
-                return;
             }
 
-            if (response.status === 200 || response.status === 201) {
-                // Extract profile data from response - try multiple possible structures
-                let profileData = data.data || data.doctor || data;
-
-                // Handle array response
-                if (Array.isArray(profileData) && profileData.length > 0) {
-                    profileData = profileData[0];
+            // 2. Fallback to userId profile endpoint
+            if (!profileData) {
+                try {
+                    console.log(`Trying fetch by userId profile endpoint: ${userId}`);
+                    const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        profileData = data.data || data.doctor || data;
+                        console.log('Found profile via userId profile endpoint');
+                    }
+                } catch (e) {
+                    console.warn('Fetch by userId profile failed, trying next...');
                 }
+            }
 
-                console.log('Extracted profile data (FIXED):', JSON.stringify(profileData, null, 2));
+            // 3. Last resort: Fetch ALL doctors and filter by normalized whatsappnumber or userId
+            if (!profileData) {
+                try {
+                    console.log('Fallback: Filtering all doctors by normalized phone or userId');
+                    const storedWhatsapp = await AsyncStorage.getItem('whatsappnumber');
 
-                if (!profileData || (!profileData.name && !profileData.email)) {
-                    console.warn('Profile data exists but is empty or incomplete:', profileData);
-                    setError('Profile data is incomplete. Please complete your profile setup.');
-                } else {
-                    console.log('Setting profile with data:', profileData);
-                    setProfile(profileData);
+                    const normalizePhone = (phone: string | undefined): string => {
+                        if (!phone) return '';
+                        let clean = phone.replace(/\D/g, '');
+                        if (clean.startsWith('92')) clean = clean.substring(2);
+                        if (clean.startsWith('0')) clean = clean.substring(1);
+                        return clean;
+                    };
+
+                    const normalizedTarget = normalizePhone(storedWhatsapp || '');
+
+                    const response = await fetch('https://appbookingbackend.onrender.com/api/doctor', {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        const allDoctors = data.data?.doctors || data.data || data;
+                        if (Array.isArray(allDoctors)) {
+                            profileData = allDoctors.find((d: any) => {
+                                const normalizedDPhone = normalizePhone(d.whatsappnumber);
+                                const matchesPhone = normalizedDPhone === normalizedTarget && normalizedTarget !== '';
+                                const matchesUserId = (d.userId && d.userId === userId) ||
+                                    (d.user && (d.user?._id === userId || d.user === userId));
+                                return matchesPhone || matchesUserId;
+                            });
+                            if (profileData) {
+                                console.log('Found profile via robust manual filtering');
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Final fallback failed:', e);
                 }
-            } else if (response.status === 404) {
-                setError('Profile not found. Please complete your profile setup.');
+            }
+
+            if (profileData) {
+                // Store doctorId for next time if we found it
+                const foundId = profileData._id || profileData.id;
+                if (foundId) {
+                    await AsyncStorage.setItem('doctorId', foundId);
+                }
+                setProfile(profileData);
             } else {
-                setError(data.message || `Failed to load profile (Status: ${response.status})`);
+                setError('Profile not found. Please complete your profile setup.');
             }
         } catch (err) {
             console.error('Profile fetch error:', err);

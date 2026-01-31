@@ -3,13 +3,25 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, StatusBar, Animated, D
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
 const TopBar = () => {
     const [modalVisible, setModalVisible] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const token = await AsyncStorage.getItem('token');
+            setIsLoggedIn(!!token);
+        };
+        if (modalVisible) {
+            checkAuth();
+        }
+    }, [modalVisible]);
 
     // Animation values
     const bgFadeAnim = useRef(new Animated.Value(0)).current;
@@ -72,10 +84,22 @@ const TopBar = () => {
         }
     }, [modalVisible]);
 
-    const handleNavigation = (screenName: string) => {
+    const handleNavigation = (screenName: string, params?: any) => {
         closeMenu(() => {
             // @ts-ignore
-            navigation.navigate(screenName);
+            navigation.navigate(screenName, params);
+        });
+    };
+
+    const handleLogout = async () => {
+        await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
+        setIsLoggedIn(false);
+        closeMenu(() => {
+            // @ts-ignore
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Main' }],
+            });
         });
     };
 
@@ -190,6 +214,46 @@ const TopBar = () => {
                                 <Text style={styles.fullScreenMenuText}>Action</Text>
                                 <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
                             </AnimatedTouchableOpacity>
+
+                            {!isLoggedIn ? (
+                                <>
+                                    <AnimatedTouchableOpacity
+                                        style={[styles.fullScreenMenuItem, { opacity: item1Op, transform: [{ translateY: item1Anim }] }]}
+                                        onPress={() => handleNavigation('Signup', { role: 'doctor' })}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
+                                            <Icon name="medical" size={24} color="#5B7FFF" />
+                                        </View>
+                                        <Text style={styles.fullScreenMenuText}>Join as Doctor</Text>
+                                        <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
+                                    </AnimatedTouchableOpacity>
+
+                                    <AnimatedTouchableOpacity
+                                        style={[styles.fullScreenMenuItem, { opacity: item2Op, transform: [{ translateY: item2Anim }] }]}
+                                        onPress={() => handleNavigation('Signup', { role: 'patient' })}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+                                            <Icon name="person-add" size={24} color="#10B981" />
+                                        </View>
+                                        <Text style={styles.fullScreenMenuText}>Join as Patient</Text>
+                                        <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
+                                    </AnimatedTouchableOpacity>
+                                </>
+                            ) : (
+                                <AnimatedTouchableOpacity
+                                    style={[styles.fullScreenMenuItem, { opacity: item1Op, transform: [{ translateY: item1Anim }] }]}
+                                    onPress={handleLogout}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
+                                        <Icon name="log-out" size={24} color="#EF4444" />
+                                    </View>
+                                    <Text style={styles.fullScreenMenuText}>Logout</Text>
+                                    <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
+                                </AnimatedTouchableOpacity>
+                            )}
                         </View>
 
                         <View style={styles.footer}>

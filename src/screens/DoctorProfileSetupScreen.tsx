@@ -66,6 +66,7 @@ const DoctorProfileSetupScreen = () => {
 
     const [loading, setLoading] = useState(false);
     const [authToken, setAuthToken] = useState<string | null>(null);
+    const [isNewProfile, setIsNewProfile] = useState(true);
 
     // Get userId and token from navigation params
     const route = useRoute();
@@ -118,8 +119,9 @@ const DoctorProfileSetupScreen = () => {
 
         try {
             console.log('Fetching doctor profile for userId:', userId);
+            let doctorData = null;
 
-            // Use the user-specific endpoint to get only this doctor's profile
+            // 1. Try specific userId endpoint
             const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
                 method: 'GET',
                 headers: {
@@ -128,62 +130,76 @@ const DoctorProfileSetupScreen = () => {
                 }
             });
 
-            console.log('Response status:', response.status);
-
-            // If profile doesn't exist (404), that's fine - it's a new signup
-            if (response.status === 404) {
-                console.log('No existing profile found for this user, starting with clean form');
-                return;
-            }
-
-            // Check if response is JSON
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                const text = await response.text();
-                console.error('Non-JSON response received:', text.substring(0, 500));
-                console.log('No existing profile found or server error, starting fresh');
-                return;
-            }
-
-            const data = await response.json();
-            console.log('Doctor profile fetch response:', JSON.stringify(data, null, 2));
-
             if (response.status === 200 || response.status === 201) {
-                // Extract profile data from response
-                let doctorData = data.data || data.doctor || data;
+                const data = await response.json();
+                doctorData = data.data || data.doctor || data;
+                if (Array.isArray(doctorData)) doctorData = doctorData[0];
+            }
 
-                // Handle array response (shouldn't happen with user-specific endpoint, but just in case)
-                if (Array.isArray(doctorData) && doctorData.length > 0) {
-                    doctorData = doctorData[0];
-                }
-
-                // Only pre-populate if we have valid data for THIS user
-                if (doctorData && doctorData.userId === userId) {
-                    setProfileData({
-                        name: doctorData.name || '',
-                        email: doctorData.email || '',
-                        emergencyContact: doctorData.emergencyContact || '',
-                        address: doctorData.address || { street: '', city: '' },
-                        pmdcRegistrationNumber: doctorData.pmdcRegistrationNumber || '',
-                        experience: doctorData.experience ? String(doctorData.experience) : '',
-                        speciality: doctorData.speciality || '',
-                        specialityId: doctorData.specialityId || '',
-                        services: doctorData.services || [],
-                        consultationTime: doctorData.consultationTime ? String(doctorData.consultationTime) : '15',
-                        locations: doctorData.locations || [],
-                        education: doctorData.education || [],
-                        availability: doctorData.availability || []
+            // 2. Fallback: Robust search by WhatsApp (using normalization)
+            if (!doctorData) {
+                const storedPhone = await AsyncStorage.getItem('whatsappnumber');
+                if (storedPhone) {
+                    console.log('Fallback: Searching by WhatsApp number:', storedPhone);
+                    const allResponse = await fetch('https://appbookingbackend.onrender.com/api/doctor', {
+                        headers: { ...(token && { 'Authorization': `Bearer ${token}` }) }
                     });
-                    console.log('Profile data pre-populated successfully for user:', userId);
-                } else {
-                    console.log('Profile data does not match current user, starting fresh');
+
+                    if (allResponse.ok) {
+                        const allData = await allResponse.json();
+                        const allDoctors = allData.data?.doctors || allData.data || allData;
+
+                        const normalizePhone = (phone: string | undefined): string => {
+                            if (!phone) return '';
+                            let clean = phone.replace(/\D/g, '');
+                            if (clean.startsWith('92')) clean = clean.substring(2);
+                            if (clean.startsWith('0')) clean = clean.substring(1);
+                            return clean;
+                        };
+
+                        const normalizedTarget = normalizePhone(storedPhone);
+                        if (Array.isArray(allDoctors)) {
+                            doctorData = allDoctors.find((d: any) =>
+                                normalizePhone(d.whatsappnumber) === normalizedTarget && normalizedTarget !== ''
+                            );
+                            if (doctorData) console.log('Found profile via WhatsApp fallback in Setup Screen');
+                        }
+                    }
+                }
+            }
+
+            if (doctorData) {
+                // Populate form
+                setProfileData({
+                    name: doctorData.name || '',
+                    email: doctorData.email || '',
+                    emergencyContact: doctorData.emergencyContact || '',
+                    address: doctorData.address || { street: '', city: '' },
+                    pmdcRegistrationNumber: doctorData.pmdcRegistrationNumber || '',
+                    experience: doctorData.experience ? String(doctorData.experience) : '',
+                    speciality: doctorData.speciality || '',
+                    specialityId: doctorData.specialityId || '',
+                    services: doctorData.services || [],
+                    consultationTime: doctorData.consultationTime ? String(doctorData.consultationTime) : '15',
+                    locations: doctorData.locations || [],
+                    education: doctorData.education || [],
+                    availability: doctorData.availability || []
+                });
+
+                setIsNewProfile(false);
+
+                // Store doctorId for submissions
+                const foundDoctorId = doctorData._id || doctorData.id || doctorData.doctorId;
+                if (foundDoctorId) {
+                    await AsyncStorage.setItem('doctorId', foundDoctorId);
                 }
             } else {
-                console.log('No existing profile found, starting fresh');
+                console.log('No existing profile found after all checks, starting fresh');
+                setIsNewProfile(true);
             }
         } catch (error) {
-            console.error('Error fetching doctor profile:', error);
-            // Don't show error alert - just let them fill the form from scratch
+            console.error('Error in robust profile fetch:', error);
+            setIsNewProfile(true);
         }
     };
 
@@ -219,17 +235,25 @@ const DoctorProfileSetupScreen = () => {
                 return loc;
             });
 
+            const storedDoctorId = await AsyncStorage.getItem('doctorId');
+
             const payload = {
                 userId: finalUserId,
-                ...profileData,
-                locations: sanitizedLocations, // Use sanitized locations
-                // Ensure numbers are numbers if required by backend
+                role: 'doctor',
+                ...(storedDoctorId && { doctorId: storedDoctorId }), // Include doc ID if we have it
+                name: profileData.name,
+                email: profileData.email,
+                emergencyContact: profileData.emergencyContact,
+                address: profileData.address,
+                pmdcRegistrationNumber: profileData.pmdcRegistrationNumber,
                 experience: parseInt(profileData.experience) || 0,
-                consultationTime: parseInt(profileData.consultationTime) || 15,
-                // Ensure speciality fields are included
+                locations: sanitizedLocations,
+                education: profileData.education,
+                availability: profileData.availability,
                 speciality: profileData.speciality,
                 specialityId: profileData.specialityId,
                 services: profileData.services,
+                consultationTime: parseInt(profileData.consultationTime) || 15,
             };
 
             console.log('=== DEBUG: Locations Array ===');
@@ -239,11 +263,15 @@ const DoctorProfileSetupScreen = () => {
             });
             console.log('=== END DEBUG ===');
 
-            console.log('Sending profile update with payload:', JSON.stringify(payload, null, 2));
+            console.log(`Sending ${isNewProfile ? 'new' : 'update'} profile with payload:`, JSON.stringify(payload, null, 2));
             console.log('Using token:', finalToken ? 'Token present' : 'No token');
 
-            const response = await fetch('https://appbookingbackend.onrender.com/api/doctor/update-profile', {
-                method: 'PUT',
+            // User specified to use PUT and update-profile endpoint
+            const url = 'https://appbookingbackend.onrender.com/api/doctor/update-profile';
+            const method = 'PUT';
+
+            const response = await fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     ...(finalToken && { 'Authorization': `Bearer ${finalToken}` })
@@ -251,11 +279,33 @@ const DoctorProfileSetupScreen = () => {
                 body: JSON.stringify(payload),
             });
 
-            const data = await response.json();
-            console.log('Profile update response:', JSON.stringify(data, null, 2));
+            console.log(`[API RESPONSE] Status: ${response.status} (${response.statusText})`);
+            const responseText = await response.text();
 
-            if (response.status === 200 || response.status === 201) {
-                Alert.alert('Success', 'Profile updated successfully!', [
+            if (!response.ok) {
+                console.error(`[API ERROR] ${method} ${url} failed with status ${response.status}`);
+                console.error('Response text:', responseText.substring(0, 1000));
+            }
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error('Failed to parse response as JSON:', e);
+                throw new Error(`Server returned non-JSON response (${response.status}): ${responseText.substring(0, 100)}`);
+            }
+
+            console.log('Profile submission response:', JSON.stringify(data, null, 2));
+
+            if (response.ok) {
+                // Store doctorId if available in response
+                const doctorId = data.data?._id || data.data?.id || data.data?.doctorId || data.doctor?._id || data._id || data.doctorId;
+                if (doctorId) {
+                    await AsyncStorage.setItem('doctorId', doctorId);
+                    console.log('Stored doctorId in AsyncStorage:', doctorId);
+                }
+
+                Alert.alert('Success', 'Profile saved successfully!', [
                     {
                         text: 'OK',
                         onPress: () => navigation.reset({
@@ -265,11 +315,11 @@ const DoctorProfileSetupScreen = () => {
                     }
                 ]);
             } else {
-                Alert.alert('Error', data.message || 'Failed to update profile');
+                Alert.alert('Error', data.message || `Failed to save profile (Status ${response.status})`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Update profile error:', error);
-            Alert.alert('Error', 'Network error or server unreachable');
+            Alert.alert('Error', error.message || 'Network error or server unreachable');
         } finally {
             setLoading(false);
         }

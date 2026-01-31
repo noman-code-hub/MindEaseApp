@@ -1,37 +1,53 @@
 export interface BookingData {
-    patientId: string;
     doctorId: string;
-    date: string; // YYYY-MM-DD
-    timeSlot: {
-        startTime: string;
-        endTime: string;
-    };
+    date: string; // YYYY-MM-DD format
+    timeSlot: string; // e.g., "02:00 PM"
+    appointmentType: 'online' | 'physical' | 'inclinic';
+    patientName?: string;
+    patientPhone?: string;
+    patientEmail?: string;
+    locationId?: string; // New field for in-clinic booking
     reason: string;
 }
 
-const BASE_URL = 'https://appbookingbackend.onrender.com/appointments/book';
+const BASE_URL = 'https://appbookingbackend.onrender.com/api/appointments';
 
-export const bookAppointment = async (bookingData: BookingData) => {
+export const bookAppointment = async (bookingData: BookingData, token: string | null = null) => {
     try {
-        console.log('Booking appointment with data:', JSON.stringify(bookingData, null, 2));
+        const headers: { [key: string]: string } = {
+            'Content-Type': 'application/json',
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
 
         const response = await fetch(BASE_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Add Authorization header if needed, assuming token might be needed later
-                // 'Authorization': `Bearer ${token}` 
-            },
+            headers,
             body: JSON.stringify(bookingData)
         });
 
-        const result = await response.json();
-        console.log('Booking response:', result);
+        const responseText = await response.text();
+        console.log(`[API REQUEST] POST ${BASE_URL}`);
+        console.log('[API PAYLOAD]', JSON.stringify(bookingData, null, 2));
+        console.log(`[API RESPONSE] Status: ${response.status}`);
+        console.log('[API BODY]', responseText);
 
-        if (!response.ok) {
-            throw new Error(result.message || result.error || 'Failed to book appointment');
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (e) {
+            console.error('[API ERROR] Failed to parse response as JSON:', responseText);
+            throw new Error(`Server returned invalid response: ${response.status}`);
         }
 
+        if (!response.ok) {
+            console.error('[API FAILURE]', result);
+            throw new Error(result.message || result.error || `Booking failed with status ${response.status}`);
+        }
+
+        console.log('[API SUCCESS] Appointment booked successfully:', result.data?._id || result._id || 'N/A');
         return result;
     } catch (error) {
         console.error('Error booking appointment:', error);
