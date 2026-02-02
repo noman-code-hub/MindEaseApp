@@ -18,7 +18,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
-import { searchDoctors, Doctor, getSpecialities, Speciality, getCities, getMajorCities } from '../services/doctorService';
+import { searchDoctors, Doctor, getSpecialities, Speciality, getCities, getMajorCities, getDoctorAvailability } from '../services/doctorService';
 import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -137,9 +137,11 @@ const HomeScreen = () => {
     const [bookingType, setBookingType] = useState<'specialist' | 'service'>('service');
     const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
     const [selectedDepartment, setSelectedDepartment] = useState('');
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(new Date().toISOString().split('T')[0]);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
     const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null); // New field for in-clinic booking
+    const [availabilitySlots, setAvailabilitySlots] = useState<{ morning: any[], afternoon: any[], evening: any[] }>({ morning: [], afternoon: [], evening: [] });
+    const [isFetchingSlots, setIsFetchingSlots] = useState(false);
     const [bookingReason, setBookingReason] = useState(''); // New field for reason
     const [appointmentTypeFilter, setAppointmentTypeFilter] = useState<'online' | 'physical' | null>(null); // New filter state
 
@@ -364,17 +366,63 @@ const HomeScreen = () => {
     }, [searchQuery, selectedLocation]);
 
     // Handlers
-    const handleSpecialistBookPress = (doctor: Doctor, type: 'online' | 'physical') => {
+    const handleSpecialistBookPress = async (doctor: Doctor, type: 'online' | 'physical') => {
         setBookingType('specialist');
         setSelectedDoctor(doctor);
         setSelectedDepartment(doctor.role);
-        setAppointmentTypeFilter(type); // Set the filter
+        setAppointmentTypeFilter(type);
         setModalVisible(true);
-        // Reset other fields
-        setSelectedDate(null);
+        // setSelectedDate(null); // Keep today's date
         setSelectedTime(null);
         setBookingReason('');
+        setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
+
+        // Fetch fresh availability
+        try {
+            const freshAvailability = await getDoctorAvailability(doctor.doctorId, selectedDate || new Date().toISOString().split('T')[0]);
+            if (freshAvailability) {
+                if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
+                    setAvailabilitySlots(freshAvailability);
+                } else if (Array.isArray(freshAvailability) && freshAvailability.length > 0) {
+                    setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch fresh availability:', err);
+        }
     };
+
+    useEffect(() => {
+        const fetchSlots = async () => {
+            if (modalVisible && selectedDoctor && selectedDate) {
+                setIsFetchingSlots(true);
+                try {
+                    const data = await getDoctorAvailability(selectedDoctor.doctorId, selectedDate);
+                    if (data) {
+                        if (data.morning || data.afternoon || data.evening) {
+                            setAvailabilitySlots({
+                                morning: data.morning || [],
+                                afternoon: data.afternoon || [],
+                                evening: data.evening || []
+                            });
+                        } else if (Array.isArray(data)) {
+                            // If it returned an array for some reason, we should still handle it
+                            // but our service is now updated to return categories
+                        }
+                    } else {
+                        setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
+                    }
+                } catch (error) {
+                    console.error('Error fetching granular slots:', error);
+                    setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
+                } finally {
+                    setIsFetchingSlots(false);
+                }
+            }
+        };
+
+        fetchSlots();
+    }, [modalVisible, selectedDoctor, selectedDate]);
 
     const handleServiceBookPress = async (serviceName: string) => {
         setBookingType('service');
@@ -445,7 +493,7 @@ const HomeScreen = () => {
         }
 
         // Reset
-        setSelectedDate(null);
+        // setSelectedDate(null);
         setSelectedTime(null);
         setBookingReason('');
     };
@@ -460,8 +508,8 @@ const HomeScreen = () => {
             Alert.alert("Missing Info", "Please select a Date and Time.");
             return;
         }
-        if (!patientName.trim() || !whatsappNumber.trim() || !patientEmail.trim()) {
-            Alert.alert("Missing Info", "Please provide patient name, phone, and email.");
+        if (!patientName.trim() || !whatsappNumber.trim()) {
+            Alert.alert("Missing Info", "Please provide patient name and phone.");
             return;
         }
 
@@ -469,21 +517,17 @@ const HomeScreen = () => {
         try {
             const token = await AsyncStorage.getItem('token');
             const isClinic = (appointmentTypeFilter || 'online') === 'physical';
+            const finalAppointmentType = isClinic ? 'inclinic' : 'online';
 
             let bookingPayload: any = {
                 doctorId: selectedDoctor.doctorId,
                 date: selectedDate,
                 timeSlot: selectedTime,
-                appointmentType: (isClinic && token) ? 'inclinic' : (appointmentTypeFilter || 'online'),
-                reason: bookingReason || "General Consultation"
+                appointmentType: finalAppointmentType,
+                reason: bookingReason || "General Consultation",
+                patientName: patientName.trim(),
+                patientPhone: whatsappNumber.trim(),
             };
-
-            // Only add patient details if NOT authenticated
-            if (!token) {
-                bookingPayload.patientName = patientName.trim();
-                bookingPayload.patientPhone = whatsappNumber.trim();
-                bookingPayload.patientEmail = patientEmail.trim();
-            }
 
             // Only add locationId if it's a clinic visit
             if (isClinic && selectedLocationId) {
@@ -502,7 +546,7 @@ const HomeScreen = () => {
             setWhatsappNumber('');
             setPatientEmail('');
             setBookingReason('');
-            setSelectedDate(null);
+            // setSelectedDate(null);
             setSelectedTime(null);
         } catch (err: any) {
             console.error("Booking error:", err);
@@ -1170,6 +1214,12 @@ const HomeScreen = () => {
                                                                 onPress={() => {
                                                                     setSelectedDoctor(doc);
                                                                     setIsDoctorDropdownOpen(false);
+                                                                    // Fetch fresh availability when doctor is selected from dropdown
+                                                                    getDoctorAvailability(doc.doctorId).then(freshAvailability => {
+                                                                        if (freshAvailability && freshAvailability.length > 0) {
+                                                                            setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
+                                                                        }
+                                                                    }).catch(err => console.error('Failed to fetch fresh availability:', err));
                                                                 }}
                                                             >
                                                                 <Text style={[styles.dropdownText, selectedDoctor?.doctorId === doc.doctorId && styles.dropdownTextSelected]}>
@@ -1198,41 +1248,184 @@ const HomeScreen = () => {
 
                             {/* 3. Time Slots Section (Dynamic) */}
                             <Text style={styles.sectionLabel}>Available Slots</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
-                                {selectedDoctor?.availability?.filter(slot => {
-                                    if (!appointmentTypeFilter) return true;
-                                    const slotType = slot.appointmentType ? slot.appointmentType.toLowerCase() : '';
-                                    const filterType = appointmentTypeFilter.toLowerCase();
 
-                                    if (filterType === 'online') {
-                                        return slotType === 'online';
-                                    }
-                                    if (filterType === 'physical') {
-                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                    }
-                                    return true;
-                                }).map((slot, index) => {
-                                    const isSelected = selectedTime === slot.startTime;
-                                    return (
-                                        <TouchableOpacity
-                                            key={index}
-                                            style={[styles.slotChip, isSelected && styles.slotChipSelected]}
-                                            onPress={() => {
-                                                setSelectedTime(slot.startTime);
-                                                setSelectedLocationId((slot as any).locationId || null);
-                                            }}
-                                        >
-                                            <Text style={[styles.slotText, isSelected && styles.textSelected]}>
-                                                {slot.startTime} - {slot.endTime} ({slot.appointmentType || 'Consultation'})
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                            {isFetchingSlots ? (
+                                <ActivityIndicator size="small" color="#5B7FFF" style={{ marginVertical: 20 }} />
+                            ) : (
+                                <>
+                                    {/* Morning Slots */}
+                                    {availabilitySlots.morning.filter(slot => {
+                                        if (!appointmentTypeFilter) return true;
+                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                        const filter = appointmentTypeFilter.toLowerCase();
+                                        if (!slotType) return true; // Show if type is missing
+                                        if (filter === 'physical') {
+                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                        }
+                                        return slotType === filter;
+                                    }).length > 0 && (
+                                            <>
+                                                <Text style={styles.slotCategoryLabel}>Morning</Text>
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                    {availabilitySlots.morning.filter(slot => {
+                                                        if (!appointmentTypeFilter) return true;
+                                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                                        const filter = appointmentTypeFilter.toLowerCase();
+                                                        if (!slotType) return true;
+                                                        if (filter === 'physical') {
+                                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                                        }
+                                                        return slotType === filter;
+                                                    }).map((slot, index) => {
+                                                        const isSelected = selectedTime === slot.time;
+                                                        const isBooked = slot.isBooked;
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={`morning-${index}`}
+                                                                style={[
+                                                                    styles.slotChip,
+                                                                    isSelected && styles.slotChipSelected,
+                                                                    isBooked && styles.slotChipDisabled
+                                                                ]}
+                                                                onPress={() => {
+                                                                    if (!isBooked) {
+                                                                        setSelectedTime(slot.time);
+                                                                        setSelectedLocationId(slot.locationId || null);
+                                                                    }
+                                                                }}
+                                                                disabled={isBooked}
+                                                            >
+                                                                <Text style={[
+                                                                    styles.slotText,
+                                                                    isSelected && styles.textSelected,
+                                                                    isBooked && styles.slotTextDisabled
+                                                                ]}>
+                                                                    {slot.time}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </ScrollView>
+                                            </>
+                                        )}
 
-                                {(!selectedDoctor?.availability || selectedDoctor.availability.length === 0) && (
-                                    <Text style={styles.slotText}>No slots available or select a doctor first.</Text>
-                                )}
-                            </ScrollView>
+                                    {availabilitySlots.afternoon.filter(slot => {
+                                        if (!appointmentTypeFilter) return true;
+                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                        const filter = appointmentTypeFilter.toLowerCase();
+                                        if (!slotType) return true;
+                                        if (filter === 'physical') {
+                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                        }
+                                        return slotType === filter;
+                                    }).length > 0 && (
+                                            <>
+                                                <Text style={styles.slotCategoryLabel}>Afternoon</Text>
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                    {availabilitySlots.afternoon.filter(slot => {
+                                                        if (!appointmentTypeFilter) return true;
+                                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                                        const filter = appointmentTypeFilter.toLowerCase();
+                                                        if (!slotType) return true;
+                                                        if (filter === 'physical') {
+                                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                                        }
+                                                        return slotType === filter;
+                                                    }).map((slot, index) => {
+                                                        const isSelected = selectedTime === slot.time;
+                                                        const isBooked = slot.isBooked;
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={`afternoon-${index}`}
+                                                                style={[
+                                                                    styles.slotChip,
+                                                                    isSelected && styles.slotChipSelected,
+                                                                    isBooked && styles.slotChipDisabled
+                                                                ]}
+                                                                onPress={() => {
+                                                                    if (!isBooked) {
+                                                                        setSelectedTime(slot.time);
+                                                                        setSelectedLocationId(slot.locationId || null);
+                                                                    }
+                                                                }}
+                                                                disabled={isBooked}
+                                                            >
+                                                                <Text style={[
+                                                                    styles.slotText,
+                                                                    isSelected && styles.textSelected,
+                                                                    isBooked && styles.slotTextDisabled
+                                                                ]}>
+                                                                    {slot.time}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </ScrollView>
+                                            </>
+                                        )}
+
+                                    {availabilitySlots.evening.filter(slot => {
+                                        if (!appointmentTypeFilter) return true;
+                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                        const filter = appointmentTypeFilter.toLowerCase();
+                                        if (!slotType) return true;
+                                        if (filter === 'physical') {
+                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                        }
+                                        return slotType === filter;
+                                    }).length > 0 && (
+                                            <>
+                                                <Text style={styles.slotCategoryLabel}>Evening</Text>
+                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                    {availabilitySlots.evening.filter(slot => {
+                                                        if (!appointmentTypeFilter) return true;
+                                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                                        const filter = appointmentTypeFilter.toLowerCase();
+                                                        if (!slotType) return true;
+                                                        if (filter === 'physical') {
+                                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                                        }
+                                                        return slotType === filter;
+                                                    }).map((slot, index) => {
+                                                        const isSelected = selectedTime === slot.time;
+                                                        const isBooked = slot.isBooked;
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={`evening-${index}`}
+                                                                style={[
+                                                                    styles.slotChip,
+                                                                    isSelected && styles.slotChipSelected,
+                                                                    isBooked && styles.slotChipDisabled
+                                                                ]}
+                                                                onPress={() => {
+                                                                    if (!isBooked) {
+                                                                        setSelectedTime(slot.time);
+                                                                        setSelectedLocationId(slot.locationId || null);
+                                                                    }
+                                                                }}
+                                                                disabled={isBooked}
+                                                            >
+                                                                <Text style={[
+                                                                    styles.slotText,
+                                                                    isSelected && styles.textSelected,
+                                                                    isBooked && styles.slotTextDisabled
+                                                                ]}>
+                                                                    {slot.time}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </ScrollView>
+                                            </>
+                                        )}
+
+                                    {availabilitySlots.morning.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 &&
+                                        availabilitySlots.afternoon.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 &&
+                                        availabilitySlots.evening.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 && (
+                                            <Text style={styles.slotText}>No {appointmentTypeFilter || 'available'} slots for this date. Please select another date or doctor.</Text>
+                                        )}
+                                </>
+                            )}
 
                             {/* 4. Patient Information */}
                             <Text style={styles.sectionLabel}>Patient Information</Text>
@@ -1309,94 +1502,120 @@ const HomeScreen = () => {
                 <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Drawer Modal */}
-            <Modal transparent={true} visible={drawerVisible} onRequestClose={() => closeDrawer()}>
-                <View style={styles.modalOverlay}>
-                    <Animated.View style={[styles.drawerContent, { transform: [{ translateX: slideAnim }] }]}>
-                        {/* Background Circles */}
-                        <View style={styles.circle1} />
-                        <View style={styles.circle2} />
+            {/* Drawer Modal - Simplified */}
+            {drawerVisible && (
+                <Modal
+                    transparent={true}
+                    visible={drawerVisible}
+                    animationType="slide"
+                    onRequestClose={() => setDrawerVisible(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <TouchableOpacity
+                            style={styles.modalBackdrop}
+                            onPress={() => setDrawerVisible(false)}
+                            activeOpacity={1}
+                        />
+                        <View style={styles.drawerContent}>
+                            <View style={styles.menuHeader}>
+                                <Text style={styles.menuTitle}>Menu</Text>
+                                <TouchableOpacity onPress={() => setDrawerVisible(false)}>
+                                    <Icon name="close" size={24} color="#1A1F3A" />
+                                </TouchableOpacity>
+                            </View>
 
-                        <TouchableOpacity style={[styles.closeButton, { top: insets.top + 20 }]} onPress={() => closeDrawer()}>
-                            <Icon name="close" size={24} color="#1A1F3A" />
-                        </TouchableOpacity>
-
-                        <View style={styles.menuHeader}>
-                            <Text style={styles.menuTitle}>Menu</Text>
-                        </View>
-
-                        <View style={styles.menuItemsContainer}>
-                            {[
-                                { name: "Home", icon: "home", nav: "Home", anim: item1Anim, op: item1Op, color: "#5B7FFF", bg: "#E8EFFF" },
-                                { name: "Profile", icon: "person", nav: "Profile", anim: item2Anim, op: item2Op, color: "#5B7FFF", bg: "#E8EFFF" },
-                                { name: "Appointment", icon: "calendar", nav: "Appointment", anim: item3Anim, op: item3Op, color: "#4ECDC4", bg: "#E0F7F5" },
-                                { name: "Plans", icon: "list", nav: "Plans", anim: item4Anim, op: item4Op, color: "#A78BFA", bg: "#F3EFFF" },
-                                { name: "Action", icon: "flash", nav: "Action", anim: item5Anim, op: item5Op, color: "#FF6B9D", bg: "#FFF0F5" },
-                            ].map((item, idx) => (
-                                <Animated.View
-                                    key={idx}
-                                    style={[styles.drawerItem, { opacity: item.op, transform: [{ translateY: item.anim }] }]}
+                            <View style={styles.menuItemsContainer}>
+                                <TouchableOpacity
+                                    style={styles.drawerItemTouch}
+                                    onPress={() => {
+                                        setDrawerVisible(false);
+                                        navigation.navigate('Home' as never);
+                                    }}
                                 >
-                                    <TouchableOpacity
-                                        style={styles.drawerItemTouch}
-                                        onPress={() => handleDrawerNav(item.nav)}
-                                    >
-                                        <View style={[styles.iconBox, { backgroundColor: item.bg }]}>
-                                            <Icon name={item.icon} size={22} color={item.color} />
-                                        </View>
-                                        <Text style={styles.drawerItemText}>{item.name}</Text>
-                                        <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
-                                    </TouchableOpacity>
-                                </Animated.View>
-                            ))}
+                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}>
+                                        <Icon name="home" size={22} color="#5B7FFF" />
+                                    </View>
+                                    <Text style={styles.drawerItemText}>Home</Text>
+                                </TouchableOpacity>
 
-                            {!isLoggedIn ? (
-                                <>
-                                    <Animated.View style={[styles.drawerItem, { opacity: item1Op, transform: [{ translateY: item1Anim }] }]}>
+                                <TouchableOpacity
+                                    style={styles.drawerItemTouch}
+                                    onPress={() => {
+                                        setDrawerVisible(false);
+                                        navigation.navigate('Profile' as never);
+                                    }}
+                                >
+                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}>
+                                        <Icon name="person" size={22} color="#5B7FFF" />
+                                    </View>
+                                    <Text style={styles.drawerItemText}>Profile</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.drawerItemTouch}
+                                    onPress={() => {
+                                        setDrawerVisible(false);
+                                        navigation.navigate('Appointment' as never);
+                                    }}
+                                >
+                                    <View style={[styles.iconBox, { backgroundColor: '#E0F7F5' }]}>
+                                        <Icon name="calendar" size={22} color="#4ECDC4" />
+                                    </View>
+                                    <Text style={styles.drawerItemText}>Appointments</Text>
+                                </TouchableOpacity>
+
+                                {!isLoggedIn ? (
+                                    <>
                                         <TouchableOpacity
                                             style={styles.drawerItemTouch}
-                                            onPress={() => handleDrawerNav('Signup', { role: 'doctor' })}
+                                            onPress={() => {
+                                                setDrawerVisible(false);
+                                                navigation.navigate('Signup' as never, { role: 'doctor' } as never);
+                                            }}
                                         >
                                             <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
                                                 <Icon name="medical" size={22} color="#5B7FFF" />
                                             </View>
                                             <Text style={styles.drawerItemText}>Join as Doctor</Text>
-                                            <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
                                         </TouchableOpacity>
-                                    </Animated.View>
 
-                                    <Animated.View style={[styles.drawerItem, { opacity: item2Op, transform: [{ translateY: item2Anim }] }]}>
                                         <TouchableOpacity
                                             style={styles.drawerItemTouch}
-                                            onPress={() => handleDrawerNav('Signup', { role: 'patient' })}
+                                            onPress={() => {
+                                                setDrawerVisible(false);
+                                                navigation.navigate('Signup' as never, { role: 'patient' } as never);
+                                            }}
                                         >
                                             <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
                                                 <Icon name="person-add" size={22} color="#10B981" />
                                             </View>
                                             <Text style={styles.drawerItemText}>Join as Patient</Text>
-                                            <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
                                         </TouchableOpacity>
-                                    </Animated.View>
-                                </>
-                            ) : (
-                                <Animated.View style={[styles.drawerItem, { opacity: item1Op, transform: [{ translateY: item1Anim }] }]}>
+                                    </>
+                                ) : (
                                     <TouchableOpacity
                                         style={styles.drawerItemTouch}
-                                        onPress={handleLogout}
+                                        onPress={async () => {
+                                            await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
+                                            setIsLoggedIn(false);
+                                            setDrawerVisible(false);
+                                            navigation.reset({
+                                                index: 0,
+                                                routes: [{ name: 'Main' }],
+                                            } as any);
+                                        }}
                                     >
                                         <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
                                             <Icon name="log-out" size={22} color="#EF4444" />
                                         </View>
                                         <Text style={styles.drawerItemText}>Logout</Text>
-                                        <Icon name="chevron-forward" size={18} color="#DDD" style={{ marginLeft: 'auto' }} />
                                     </TouchableOpacity>
-                                </Animated.View>
-                            )}
+                                )}
+                            </View>
                         </View>
-                    </Animated.View>
-                    <TouchableOpacity style={styles.modalBackdrop} onPress={() => closeDrawer()} activeOpacity={1} />
-                </View>
-            </Modal>
+                    </View>
+                </Modal>
+            )}
         </View>
     );
 };
@@ -1600,41 +1819,66 @@ const styles = StyleSheet.create({
     // Drawer Styles
     modalOverlay: {
         flex: 1,
-        flexDirection: 'row',
-        zIndex: 1000,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
     },
     modalBackdrop: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
     },
     drawerContent: {
-        width: '80%',
-        backgroundColor: '#FFFFFF',
+        width: '75%',
         height: '100%',
-        borderTopRightRadius: 30,
-        borderBottomRightRadius: 30,
+        backgroundColor: '#FFFFFF',
+        padding: 20,
         elevation: 10,
         shadowColor: '#000',
-        shadowOffset: { width: 5, height: 0 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.3,
         shadowRadius: 10,
-        paddingBottom: 40,
     },
-    circle1: { position: 'absolute', top: -100, left: -100, width: 300, height: 300, borderRadius: 150, backgroundColor: '#F0F4FF', opacity: 0.8 },
-    circle2: { position: 'absolute', bottom: -150, right: -50, width: 400, height: 400, borderRadius: 200, backgroundColor: '#F0F4FF', opacity: 0.6 },
-    closeButton: {
-        position: 'absolute', right: 20, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 20, zIndex: 20,
+    menuHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        marginBottom: 20,
     },
-    menuHeader: { marginTop: 60, paddingHorizontal: 30, marginBottom: 20 },
-    menuTitle: { fontSize: 28, fontWeight: '800', color: '#1A1F3A' },
-    menuItemsContainer: { paddingHorizontal: 20, gap: 16 },
-    drawerItem: { width: '100%' },
+    menuTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#1A1F3A',
+    },
+    menuItemsContainer: {
+        gap: 12,
+    },
     drawerItemTouch: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 16,
-        shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F9F9F9',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 12,
     },
-    iconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-    drawerItemText: { fontSize: 16, fontWeight: '700', color: '#1A1F3A' },
+    iconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    drawerItemText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1A1F3A',
+    },
     iconButton: {
         padding: 8,
         backgroundColor: '#F5F7FA',
@@ -2228,6 +2472,21 @@ const styles = StyleSheet.create({
     slotText: {
         fontSize: 12,
         color: '#333',
+    },
+    slotCategoryLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 12,
+        marginBottom: 8,
+        paddingHorizontal: 4,
+    },
+    slotChipDisabled: {
+        backgroundColor: '#F5F5F5',
+        borderColor: '#E0E0E0',
+    },
+    slotTextDisabled: {
+        color: '#BBB',
     },
     inputGroup: {
         marginBottom: 12,

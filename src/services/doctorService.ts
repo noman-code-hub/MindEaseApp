@@ -66,14 +66,14 @@ const SPECIALITIES_BASE_URL = 'https://appbookingbackend.onrender.com/api/specia
 const mapDoctorData = (doc: any): Doctor => ({
     doctorId: doc._id || doc.doctorId,
     name: doc.name,
-    role: doc.specialization || doc.role || 'Doctor',
-    speciality: doc.specialization,
+    role: doc.specialization || doc.speciality || doc.role || 'Doctor', // Prioritize specialization/speciality
+    speciality: doc.specialization || doc.speciality,
     hospitalName: doc.hospitalName,
     city: doc.address?.city,
     rating: doc.averageRating || 0,
     experience: doc.experience,
     availability: doc.availability || [],
-    specialization: doc.specialization,
+    specialization: doc.specialization || doc.speciality,
     education: doc.education || [],
     about: doc.about,
     clinicName: doc.clinicName || doc.hospitalName,
@@ -381,5 +381,140 @@ export const bulkRegisterDoctors = async (doctors: BulkDoctorData[]): Promise<{ 
     } catch (error) {
         console.error('Error bulk registering doctors:', error);
         return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+    }
+};
+// Helper to parse "09:00 AM" into minutes from midnight
+// Helper to parse "09:00 AM", "09:00", "4 AM", etc. into minutes from midnight
+const parseTimeToMinutes = (timeStr: string): number => {
+    if (!timeStr || typeof timeStr !== 'string') return 0;
+    try {
+        const clean = timeStr.trim().toUpperCase();
+        // Regex handles: "9", "09:00", "9 AM", "9:00AM", "14:00"
+        const match = clean.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/);
+        if (!match) return 0;
+
+        let hours = parseInt(match[1]);
+        const minutes = match[2] ? parseInt(match[2]) : 0;
+        const modifier = match[3];
+
+        if (modifier) {
+            if (hours === 12 && modifier === 'AM') hours = 0;
+            else if (hours !== 12 && modifier === 'PM') hours += 12;
+        }
+
+        return hours * 60 + minutes;
+    } catch (e) {
+        return 0;
+    }
+};
+
+// Helper to format minutes into "09:00 AM"
+const formatMinutesToTime = (minutes: number): string => {
+    let hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    const modifier = hours >= 12 ? 'PM' : 'AM';
+    if (hours > 12) hours -= 12;
+    if (hours === 0) hours = 12;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${modifier}`;
+};
+
+// Get doctor availability
+export const getDoctorAvailability = async (doctorId: string, date?: string): Promise<any> => {
+    try {
+        if (!doctorId) {
+            console.error('getDoctorAvailability: doctorId is missing');
+            return null;
+        }
+
+        let url = `${BASE_URL}/${doctorId}/availability`;
+        if (date) {
+            url += `?date=${date}`;
+        }
+
+        console.log('Fetching doctor availability from:', url);
+
+        const response = await fetch(url);
+        const responseText = await response.text();
+
+        console.log(`[API RESPONSE] GET ${url} Status: ${response.status}`);
+
+        if (!response.ok) {
+            console.error(`[API ERROR] ${response.status}: ${responseText.substring(0, 200)}`);
+            return null;
+        }
+
+        try {
+            const data = JSON.parse(responseText);
+            console.log('Get doctor availability success structure check');
+
+            let rawSlots: any[] = [];
+            // Handle various response structures:
+            // 1. { success: true, data: { availability: [...] } } <- User's current case
+            // 2. { success: true, data: [...] }
+            // 3. { morning: [], ... }
+
+            if (data.success && data.data) {
+                if (data.data.availability && Array.isArray(data.data.availability)) {
+                    rawSlots = data.data.availability;
+                } else if (Array.isArray(data.data)) {
+                    rawSlots = data.data;
+                } else if (data.data.morning || data.data.afternoon || data.data.evening) {
+                    return data.data;
+                }
+            } else if (data.availability && Array.isArray(data.availability)) {
+                rawSlots = data.availability;
+            } else if (data.morning || data.afternoon || data.evening) {
+                return data;
+            } else if (Array.isArray(data)) {
+                rawSlots = data;
+            }
+
+            // Splitting logic for ranges -> 15 min slots
+            const result: { morning: any[], afternoon: any[], evening: any[] } = {
+                morning: [],
+                afternoon: [],
+                evening: []
+            };
+
+            rawSlots.forEach((slot: any) => {
+                // If it's already a split slot
+                if (slot.time) {
+                    const mins = parseTimeToMinutes(slot.time);
+                    if (mins < 720) result.morning.push(slot); // < 12:00 PM
+                    else if (mins < 1020) result.afternoon.push(slot); // < 05:00 PM
+                    else result.evening.push(slot);
+                    return;
+                }
+
+                // If it's a range (startTime, endTime)
+                if (slot.startTime && slot.endTime) {
+                    const startMins = parseTimeToMinutes(slot.startTime);
+                    const endMins = parseTimeToMinutes(slot.endTime);
+                    const locationId = (slot as any).locationId;
+
+                    for (let m = startMins; m < endMins; m += 15) {
+                        const time = formatMinutesToTime(m);
+                        const newSlot = {
+                            time,
+                            isBooked: slot.isBooked || false,
+                            locationId,
+                            appointmentType: slot.appointmentType
+                        };
+
+                        if (m < 720) result.morning.push(newSlot);
+                        else if (m < 1020) result.afternoon.push(newSlot);
+                        else result.evening.push(newSlot);
+                    }
+                }
+            });
+
+            return result;
+        } catch (e) {
+            console.error('JSON Parse Error in getDoctorAvailability:', e);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error fetching doctor availability:', error);
+        return null;
     }
 };

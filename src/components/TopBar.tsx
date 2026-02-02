@@ -240,6 +240,19 @@ const TopBar = () => {
                                         <Text style={styles.fullScreenMenuText}>Join as Patient</Text>
                                         <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
                                     </AnimatedTouchableOpacity>
+
+                                    {/* Also Add Login Option */}
+                                    <AnimatedTouchableOpacity
+                                        style={[styles.fullScreenMenuItem, { opacity: item3Op, transform: [{ translateY: item3Anim }] }]}
+                                        onPress={() => handleNavigation('Login', { role: 'patient' })} // Default to patient login, user can switch or we can have generic login
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.iconBox, { backgroundColor: '#FFF7ED' }]}>
+                                            <Icon name="log-in" size={24} color="#F97316" />
+                                        </View>
+                                        <Text style={styles.fullScreenMenuText}>Login</Text>
+                                        <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
+                                    </AnimatedTouchableOpacity>
                                 </>
                             ) : (
                                 <AnimatedTouchableOpacity

@@ -30,17 +30,27 @@ const DoctorProfileSetupScreen = () => {
         address: { street: '', city: '' },
         pmdcRegistrationNumber: '',
         experience: '',
+        superSpeciality: '',
         speciality: '',
         specialityId: '',
+        gender: '',
+        about: '',
+        languages: [] as string[],
+        fees: { online: '', inclinic: '' },
         services: [] as string[],
         consultationTime: '15',
         locations: [] as any[],
         education: [] as any[],
-        availability: [] as any[]
+        awards: [] as any[],
+        memberships: [] as string[],
+        availability: [] as any[],
+        image: ''
     });
 
     // Temporary states for adding items
     const [tempEducation, setTempEducation] = useState({ degree: '', institute: '', startYear: '', endYear: '' });
+    const [tempAward, setTempAward] = useState({ name: '', year: '' });
+    const [tempMembership, setTempMembership] = useState('');
     const [tempLocation, setTempLocation] = useState({ name: '', phone: '', lat: '', lng: '', isOnline: false });
     const [tempAvailability, setTempAvailability] = useState({ day: 'Monday', startTime: '', endTime: '', appointmentType: 'inclinic', locationName: '' });
 
@@ -177,13 +187,24 @@ const DoctorProfileSetupScreen = () => {
                     address: doctorData.address || { street: '', city: '' },
                     pmdcRegistrationNumber: doctorData.pmdcRegistrationNumber || '',
                     experience: doctorData.experience ? String(doctorData.experience) : '',
+                    about: doctorData.about || '',
+                    gender: doctorData.gender || '',
+                    languages: doctorData.languages || [],
+                    superSpeciality: doctorData.superSpeciality || '',
                     speciality: doctorData.speciality || '',
                     specialityId: doctorData.specialityId || '',
                     services: doctorData.services || [],
+                    fees: {
+                        online: doctorData.fees?.online ? String(doctorData.fees.online) : '',
+                        inclinic: doctorData.fees?.inclinic ? String(doctorData.fees.inclinic) : ''
+                    },
                     consultationTime: doctorData.consultationTime ? String(doctorData.consultationTime) : '15',
                     locations: doctorData.locations || [],
                     education: doctorData.education || [],
-                    availability: doctorData.availability || []
+                    awards: doctorData.awards || [],
+                    memberships: doctorData.memberships || [],
+                    availability: doctorData.availability || [],
+                    image: doctorData.image || ''
                 });
 
                 setIsNewProfile(false);
@@ -247,13 +268,24 @@ const DoctorProfileSetupScreen = () => {
                 address: profileData.address,
                 pmdcRegistrationNumber: profileData.pmdcRegistrationNumber,
                 experience: parseInt(profileData.experience) || 0,
+                about: profileData.about,
+                gender: profileData.gender,
+                languages: profileData.languages,
                 locations: sanitizedLocations,
                 education: profileData.education,
+                awards: profileData.awards,
+                memberships: profileData.memberships,
                 availability: profileData.availability,
+                superSpeciality: profileData.superSpeciality,
                 speciality: profileData.speciality,
                 specialityId: profileData.specialityId,
                 services: profileData.services,
+                fees: {
+                    online: parseInt(profileData.fees.online) || 0,
+                    inclinic: parseInt(profileData.fees.inclinic) || 0
+                },
                 consultationTime: parseInt(profileData.consultationTime) || 15,
+                image: profileData.image,
             };
 
             console.log('=== DEBUG: Locations Array ===');
@@ -371,6 +403,40 @@ const DoctorProfileSetupScreen = () => {
             />
             <TextInput
                 style={styles.input}
+                placeholder="Profile Image URL"
+                value={profileData.image}
+                onChangeText={(t) => updateProfile('image', t)}
+            />
+
+            <Text style={styles.label}>Gender</Text>
+            <View style={styles.row}>
+                {['Male', 'Female', 'Other'].map((g) => (
+                    <TouchableOpacity
+                        key={g}
+                        style={[styles.chip, profileData.gender === g && styles.chipActive]}
+                        onPress={() => updateProfile('gender', g)}
+                    >
+                        <Text style={[styles.chipText, profileData.gender === g && styles.chipTextActive]}>{g}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            <TextInput
+                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                placeholder="About / Bio"
+                value={profileData.about}
+                onChangeText={(t) => updateProfile('about', t)}
+                multiline
+            />
+
+            <TextInput
+                style={styles.input}
+                placeholder="Languages (comma separated, e.g. English, Urdu)"
+                value={profileData.languages.join(', ')}
+                onChangeText={(t) => updateProfile('languages', t.split(',').map(s => s.trim()).filter(s => s))}
+            />
+            <TextInput
+                style={styles.input}
                 placeholder="Emergency Contact"
                 keyboardType="phone-pad"
                 value={profileData.emergencyContact}
@@ -402,6 +468,8 @@ const DoctorProfileSetupScreen = () => {
                 onChangeText={(t) => updateProfile('experience', t)}
             />
 
+
+
             <Text style={styles.label}>Speciality</Text>
             <View style={styles.pickerContainer}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
@@ -415,6 +483,8 @@ const DoctorProfileSetupScreen = () => {
                             onPress={() => {
                                 updateProfile('speciality', spec.speciality);
                                 updateProfile('specialityId', spec._id || '');
+                                // Clear super speciality when changing speciality
+                                updateProfile('superSpeciality', '');
                             }}
                         >
                             <Text style={[
@@ -427,6 +497,38 @@ const DoctorProfileSetupScreen = () => {
                     ))}
                 </ScrollView>
             </View>
+
+            {profileData.specialityId && (() => {
+                const selectedSpec = specialities.find(s => s._id === profileData.specialityId);
+                const superSpecs = selectedSpec?.super_specialities || [];
+
+                return superSpecs.length > 0 ? (
+                    <>
+                        <Text style={styles.label}>Super Speciality</Text>
+                        <View style={styles.pickerContainer}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                                {superSpecs.map((superSpec, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[
+                                            styles.chip,
+                                            profileData.superSpeciality === superSpec.name && styles.chipActive
+                                        ]}
+                                        onPress={() => updateProfile('superSpeciality', superSpec.name)}
+                                    >
+                                        <Text style={[
+                                            styles.chipText,
+                                            profileData.superSpeciality === superSpec.name && styles.chipTextActive
+                                        ]}>
+                                            {superSpec.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </>
+                ) : null;
+            })()}
 
             <TextInput
                 style={styles.input}
@@ -450,6 +552,20 @@ const DoctorProfileSetupScreen = () => {
         if (!tempEducation.degree || !tempEducation.institute) return Alert.alert('Error', 'Fill required fields');
         setProfileData(prev => ({ ...prev, education: [...prev.education, tempEducation] }));
         setTempEducation({ degree: '', institute: '', startYear: '', endYear: '' });
+    };
+
+
+
+    const addAward = () => {
+        if (!tempAward.name || !tempAward.year) return Alert.alert('Error', 'Name and Year required');
+        setProfileData(prev => ({ ...prev, awards: [...prev.awards, tempAward] }));
+        setTempAward({ name: '', year: '' });
+    };
+
+    const addMembership = () => {
+        if (!tempMembership) return Alert.alert('Error', 'Membership name required');
+        setProfileData(prev => ({ ...prev, memberships: [...prev.memberships, tempMembership] }));
+        setTempMembership('');
     };
 
     const renderEducation = () => (
@@ -481,6 +597,48 @@ const DoctorProfileSetupScreen = () => {
                 </View>
                 <TouchableOpacity style={styles.addButton} onPress={addEducation}>
                     <Text style={styles.addButtonText}>Add Education</Text>
+                </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Awards</Text>
+            {profileData.awards.map((awr, index) => (
+                <View key={index} style={styles.cardItem}>
+                    <Text style={styles.cardTitle}>{awr.name}</Text>
+                    <Text style={styles.cardSubtitle}>{awr.year}</Text>
+                    <TouchableOpacity onPress={() => {
+                        const newAwards = [...profileData.awards];
+                        newAwards.splice(index, 1);
+                        updateProfile('awards', newAwards);
+                    }}>
+                        <Text style={styles.deleteText}>Remove</Text>
+                    </TouchableOpacity>
+                </View>
+            ))}
+            <View style={styles.addItemContainer}>
+                <TextInput style={styles.input} placeholder="Award Name" value={tempAward.name} onChangeText={t => setTempAward({ ...tempAward, name: t })} />
+                <TextInput style={styles.input} placeholder="Year" keyboardType="numeric" value={tempAward.year} onChangeText={t => setTempAward({ ...tempAward, year: t })} />
+                <TouchableOpacity style={styles.addButton} onPress={addAward}>
+                    <Text style={styles.addButtonText}>Add Award</Text>
+                </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Memberships</Text>
+            {profileData.memberships.map((mem, index) => (
+                <View key={index} style={styles.cardItem}>
+                    <Text style={styles.cardTitle}>{mem}</Text>
+                    <TouchableOpacity onPress={() => {
+                        const newMems = [...profileData.memberships];
+                        newMems.splice(index, 1);
+                        updateProfile('memberships', newMems);
+                    }}>
+                        <Text style={styles.deleteText}>Remove</Text>
+                    </TouchableOpacity>
+                </View>
+            ))}
+            <View style={styles.addItemContainer}>
+                <TextInput style={styles.input} placeholder="Membership (e.g. PMC)" value={tempMembership} onChangeText={setTempMembership} />
+                <TouchableOpacity style={styles.addButton} onPress={addMembership}>
+                    <Text style={styles.addButtonText}>Add Membership</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -559,14 +717,41 @@ const DoctorProfileSetupScreen = () => {
     );
 
     const addAvailability = () => {
-        if (!tempAvailability.startTime || !tempAvailability.endTime) return Alert.alert('Error', 'Time is required');
+        if (!tempAvailability.day) return Alert.alert('Error', 'Please select a day');
+        if (!tempAvailability.startTime || !tempAvailability.endTime) return Alert.alert('Error', 'Start time and end time are required');
+        if (tempAvailability.appointmentType === 'inclinic' && !tempAvailability.locationName) {
+            return Alert.alert('Error', 'Location name is required for in-clinic appointments');
+        }
+
         setProfileData(prev => ({ ...prev, availability: [...prev.availability, tempAvailability] }));
-        // Reset mostly but keep some sensible defaults maybe?
-        setTempAvailability({ ...tempAvailability, startTime: '', endTime: '' });
+
+        // Show success message
+        Alert.alert('Success', `Availability added for ${tempAvailability.day}!`);
+
+        // Reset all fields for next entry
+        setTempAvailability({ day: 'Monday', startTime: '', endTime: '', appointmentType: 'inclinic', locationName: '' });
     };
 
     const renderAvailability = () => (
         <View style={styles.formContainer}>
+            <Text style={styles.sectionTitle}>Consultation Fees</Text>
+            <View style={styles.row}>
+                <TextInput
+                    style={[styles.input, { flex: 1, marginRight: 8 }]}
+                    placeholder="Online Fee"
+                    keyboardType="numeric"
+                    value={profileData.fees.online}
+                    onChangeText={t => setProfileData(prev => ({ ...prev, fees: { ...prev.fees, online: t } }))}
+                />
+                <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    placeholder="In-Clinic Fee"
+                    keyboardType="numeric"
+                    value={profileData.fees.inclinic}
+                    onChangeText={t => setProfileData(prev => ({ ...prev, fees: { ...prev.fees, inclinic: t } }))}
+                />
+            </View>
+
             <Text style={styles.sectionTitle}>Availability</Text>
             {profileData.availability.map((avail, index) => (
                 <View key={index} style={styles.cardItem}>
@@ -584,14 +769,29 @@ const DoctorProfileSetupScreen = () => {
             ))}
 
             <View style={styles.addItemContainer}>
-                <Text style={styles.subTitle}>Add Slot</Text>
-                <TextInput style={styles.input} placeholder="Day (e.g. Monday)" value={tempAvailability.day} onChangeText={t => setTempAvailability({ ...tempAvailability, day: t })} />
+                <Text style={styles.subTitle}>Add Availability Slot</Text>
+
+                <Text style={styles.label}>Day</Text>
+                <View style={styles.pickerContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                            <TouchableOpacity
+                                key={day}
+                                style={[styles.chip, tempAvailability.day === day && styles.chipActive]}
+                                onPress={() => setTempAvailability({ ...tempAvailability, day })}
+                            >
+                                <Text style={[styles.chipText, tempAvailability.day === day && styles.chipTextActive]}>{day}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
 
                 <View style={styles.row}>
                     <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} placeholder="Start Time (09:00)" value={tempAvailability.startTime} onChangeText={t => setTempAvailability({ ...tempAvailability, startTime: t })} />
                     <TextInput style={[styles.input, { flex: 1 }]} placeholder="End Time (17:00)" value={tempAvailability.endTime} onChangeText={t => setTempAvailability({ ...tempAvailability, endTime: t })} />
                 </View>
 
+                <Text style={styles.label}>Appointment Type</Text>
                 <View style={styles.row}>
                     <TouchableOpacity
                         style={[styles.chip, tempAvailability.appointmentType === 'inclinic' && styles.chipActive]}
@@ -601,18 +801,20 @@ const DoctorProfileSetupScreen = () => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.chip, tempAvailability.appointmentType === 'online' && styles.chipActive]}
-                        onPress={() => setTempAvailability({ ...tempAvailability, appointmentType: 'online' })}
+                        onPress={() => setTempAvailability({ ...tempAvailability, appointmentType: 'online', locationName: '' })}
                     >
                         <Text style={[styles.chipText, tempAvailability.appointmentType === 'online' && styles.chipTextActive]}>Online</Text>
                     </TouchableOpacity>
                 </View>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="Location Name (Must match added locations)"
-                    value={tempAvailability.locationName}
-                    onChangeText={t => setTempAvailability({ ...tempAvailability, locationName: t })}
-                />
+                {tempAvailability.appointmentType === 'inclinic' && (
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Location Name (Must match added locations)"
+                        value={tempAvailability.locationName}
+                        onChangeText={t => setTempAvailability({ ...tempAvailability, locationName: t })}
+                    />
+                )}
 
                 <TouchableOpacity style={styles.addButton} onPress={addAvailability}>
                     <Text style={styles.addButtonText}>Add Availability</Text>
@@ -643,7 +845,7 @@ const DoctorProfileSetupScreen = () => {
             <View style={styles.footer}>
                 <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
                     <Text style={styles.nextButtonText}>
-                        {loading ? <ActivityIndicator color="#FFF" /> : (currentStep === STEPS.length - 1 ? 'Finish' : 'Next')}
+                        {loading ? <ActivityIndicator color="#FFF" /> : (currentStep === STEPS.length - 1 ? 'Save & Finish' : 'Next')}
                     </Text>
                 </TouchableOpacity>
             </View>

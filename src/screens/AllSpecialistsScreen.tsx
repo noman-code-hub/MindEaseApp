@@ -14,7 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { searchDoctors, getSpecialities, Doctor, Speciality } from '../services/doctorService';
+import { searchDoctors, getSpecialities, Doctor, Speciality, getDoctorAvailability } from '../services/doctorService';
 import { Calendar } from 'react-native-calendars';
 import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
@@ -44,11 +44,13 @@ const AllSpecialistsScreen = () => {
     // Booking State
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string | null>(new Date().toISOString().split('T')[0]);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
     const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
     const [bookingReason, setBookingReason] = useState('');
     const [appointmentTypeFilter, setAppointmentTypeFilter] = useState<'online' | 'physical' | null>(null);
+    const [availabilitySlots, setAvailabilitySlots] = useState<{ morning: any[], afternoon: any[], evening: any[] }>({ morning: [], afternoon: [], evening: [] });
+    const [isFetchingSlots, setIsFetchingSlots] = useState(false);
 
     // Patient Form State
     const [patientName, setPatientName] = useState('');
@@ -100,17 +102,61 @@ const AllSpecialistsScreen = () => {
         setIsProfileModalVisible(true);
     };
 
-    const handleSpecialistBookPress = (doctor: Doctor, type: 'online' | 'physical') => {
+    const handleSpecialistBookPress = async (doctor: Doctor, type: 'online' | 'physical') => {
         setSelectedDoctor(doctor);
         setAppointmentTypeFilter(type);
         setModalVisible(true);
-        setSelectedDate(null);
+        // setSelectedDate(null);
         setSelectedTime(null);
         setBookingReason('');
         setPatientName('');
         setWhatsappNumber('');
         setPatientEmail('');
+        setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
+
+        // Fetch fresh availability
+        try {
+            const freshAvailability = await getDoctorAvailability(doctor.doctorId, selectedDate || new Date().toISOString().split('T')[0]);
+            if (freshAvailability) {
+                if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
+                    setAvailabilitySlots(freshAvailability);
+                } else if (Array.isArray(freshAvailability) && freshAvailability.length > 0) {
+                    setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch fresh availability:', err);
+        }
     };
+
+    useEffect(() => {
+        const fetchSlots = async () => {
+            if (modalVisible && selectedDoctor && selectedDate) {
+                setIsFetchingSlots(true);
+                try {
+                    const data = await getDoctorAvailability(selectedDoctor.doctorId, selectedDate);
+                    if (data) {
+                        if (data.morning || data.afternoon || data.evening) {
+                            setAvailabilitySlots({
+                                morning: data.morning || [],
+                                afternoon: data.afternoon || [],
+                                evening: data.evening || []
+                            });
+                        }
+                    } else {
+                        setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
+                    }
+                } catch (error) {
+                    console.error('Error fetching granular slots:', error);
+                    setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
+                } finally {
+                    setIsFetchingSlots(false);
+                }
+            }
+        };
+
+        fetchSlots();
+    }, [modalVisible, selectedDoctor, selectedDate]);
 
     const handleBookFromProfile = () => {
         setIsProfileModalVisible(false);
@@ -149,15 +195,11 @@ const AllSpecialistsScreen = () => {
                 date: selectedDate,
                 timeSlot: selectedTime,
                 appointmentType: (isClinic && token) ? 'inclinic' : (appointmentTypeFilter || 'online'),
-                reason: bookingReason || "General Consultation"
+                reason: bookingReason || "General Consultation",
+                patientName: patientName.trim(),
+                patientPhone: whatsappNumber.trim(),
+                patientEmail: patientEmail.trim()
             };
-
-            // Only add patient details if NOT authenticated
-            if (!token) {
-                bookingPayload.patientName = patientName.trim();
-                bookingPayload.patientPhone = whatsappNumber.trim();
-                bookingPayload.patientEmail = patientEmail.trim();
-            }
 
             // Only add locationId if it's a clinic visit
             if (isClinic && selectedLocationId) {
@@ -275,7 +317,7 @@ const AllSpecialistsScreen = () => {
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleProfilePress(item)} style={styles.cardInfo}>
                                 <Text style={styles.doctorName}>{item.name}</Text>
-                                <Text style={styles.specialityText}>{item.role}</Text>
+                                <Text style={styles.specialityText}>{item.specialization || item.speciality || item.role}</Text>
                                 {item.city && (
                                     <Text style={styles.locationText}>
                                         <Icon name="location-outline" size={12} /> {item.city}
@@ -346,40 +388,184 @@ const AllSpecialistsScreen = () => {
 
                         {/* Slots */}
                         <Text style={styles.sectionLabel}>Available Slots</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
-                            {selectedDoctor?.availability?.filter(slot => {
-                                if (!appointmentTypeFilter) return true;
-                                const slotType = slot.appointmentType ? slot.appointmentType.toLowerCase() : '';
-                                const filterType = appointmentTypeFilter.toLowerCase();
 
-                                if (filterType === 'online') {
-                                    return slotType === 'online';
-                                }
-                                if (filterType === 'physical') {
-                                    return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                }
-                                return true;
-                            }).map((slot, index) => {
-                                const isSelected = selectedTime === slot.startTime;
-                                return (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={[styles.slotChip, isSelected && styles.slotChipSelected]}
-                                        onPress={() => {
-                                            setSelectedTime(slot.startTime);
-                                            setSelectedLocationId((slot as any).locationId || null);
-                                        }}
-                                    >
-                                        <Text style={[styles.slotText, isSelected && styles.textSelected]}>
-                                            {slot.startTime} - {slot.endTime} ({slot.appointmentType || 'Consultation'})
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                            {(!selectedDoctor?.availability || selectedDoctor.availability.length === 0) && (
-                                <Text style={styles.slotText}>No slots available.</Text>
-                            )}
-                        </ScrollView>
+                        {isFetchingSlots ? (
+                            <ActivityIndicator size="small" color="#5B7FFF" style={{ marginVertical: 20 }} />
+                        ) : (
+                            <>
+                                {/* Morning Slots */}
+                                {availabilitySlots.morning.filter(slot => {
+                                    if (!appointmentTypeFilter) return true;
+                                    const slotType = (slot.appointmentType || '').toLowerCase();
+                                    const filter = appointmentTypeFilter.toLowerCase();
+                                    if (!slotType) return true; // Show if type is missing
+                                    if (filter === 'physical') {
+                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                    }
+                                    return slotType === filter;
+                                }).length > 0 && (
+                                        <>
+                                            <Text style={styles.slotCategoryLabel}>Morning</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                {availabilitySlots.morning.filter(slot => {
+                                                    if (!appointmentTypeFilter) return true;
+                                                    const slotType = (slot.appointmentType || '').toLowerCase();
+                                                    const filter = appointmentTypeFilter.toLowerCase();
+                                                    if (!slotType) return true;
+                                                    if (filter === 'physical') {
+                                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                                    }
+                                                    return slotType === filter;
+                                                }).map((slot, index) => {
+                                                    const isSelected = selectedTime === slot.time;
+                                                    const isBooked = slot.isBooked;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={`morning-${index}`}
+                                                            style={[
+                                                                styles.slotChip,
+                                                                isSelected && styles.slotChipSelected,
+                                                                isBooked && styles.slotChipDisabled
+                                                            ]}
+                                                            onPress={() => {
+                                                                if (!isBooked) {
+                                                                    setSelectedTime(slot.time);
+                                                                    setSelectedLocationId(slot.locationId || null);
+                                                                }
+                                                            }}
+                                                            disabled={isBooked}
+                                                        >
+                                                            <Text style={[
+                                                                styles.slotText,
+                                                                isSelected && styles.textSelected,
+                                                                isBooked && styles.slotTextDisabled
+                                                            ]}>
+                                                                {slot.time}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </>
+                                    )}
+
+                                {availabilitySlots.afternoon.filter(slot => {
+                                    if (!appointmentTypeFilter) return true;
+                                    const slotType = (slot.appointmentType || '').toLowerCase();
+                                    const filter = appointmentTypeFilter.toLowerCase();
+                                    if (!slotType) return true;
+                                    if (filter === 'physical') {
+                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                    }
+                                    return slotType === filter;
+                                }).length > 0 && (
+                                        <>
+                                            <Text style={styles.slotCategoryLabel}>Afternoon</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                {availabilitySlots.afternoon.filter(slot => {
+                                                    if (!appointmentTypeFilter) return true;
+                                                    const slotType = (slot.appointmentType || '').toLowerCase();
+                                                    const filter = appointmentTypeFilter.toLowerCase();
+                                                    if (!slotType) return true;
+                                                    if (filter === 'physical') {
+                                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                                    }
+                                                    return slotType === filter;
+                                                }).map((slot, index) => {
+                                                    const isSelected = selectedTime === slot.time;
+                                                    const isBooked = slot.isBooked;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={`afternoon-${index}`}
+                                                            style={[
+                                                                styles.slotChip,
+                                                                isSelected && styles.slotChipSelected,
+                                                                isBooked && styles.slotChipDisabled
+                                                            ]}
+                                                            onPress={() => {
+                                                                if (!isBooked) {
+                                                                    setSelectedTime(slot.time);
+                                                                    setSelectedLocationId(slot.locationId || null);
+                                                                }
+                                                            }}
+                                                            disabled={isBooked}
+                                                        >
+                                                            <Text style={[
+                                                                styles.slotText,
+                                                                isSelected && styles.textSelected,
+                                                                isBooked && styles.slotTextDisabled
+                                                            ]}>
+                                                                {slot.time}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </>
+                                    )}
+
+                                {availabilitySlots.evening.filter(slot => {
+                                    if (!appointmentTypeFilter) return true;
+                                    const slotType = (slot.appointmentType || '').toLowerCase();
+                                    const filter = appointmentTypeFilter.toLowerCase();
+                                    if (!slotType) return true;
+                                    if (filter === 'physical') {
+                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                    }
+                                    return slotType === filter;
+                                }).length > 0 && (
+                                        <>
+                                            <Text style={styles.slotCategoryLabel}>Evening</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                {availabilitySlots.evening.filter(slot => {
+                                                    if (!appointmentTypeFilter) return true;
+                                                    const slotType = (slot.appointmentType || '').toLowerCase();
+                                                    const filter = appointmentTypeFilter.toLowerCase();
+                                                    if (!slotType) return true;
+                                                    if (filter === 'physical') {
+                                                        return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                                    }
+                                                    return slotType === filter;
+                                                }).map((slot, index) => {
+                                                    const isSelected = selectedTime === slot.time;
+                                                    const isBooked = slot.isBooked;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={`evening-${index}`}
+                                                            style={[
+                                                                styles.slotChip,
+                                                                isSelected && styles.slotChipSelected,
+                                                                isBooked && styles.slotChipDisabled
+                                                            ]}
+                                                            onPress={() => {
+                                                                if (!isBooked) {
+                                                                    setSelectedTime(slot.time);
+                                                                    setSelectedLocationId(slot.locationId || null);
+                                                                }
+                                                            }}
+                                                            disabled={isBooked}
+                                                        >
+                                                            <Text style={[
+                                                                styles.slotText,
+                                                                isSelected && styles.textSelected,
+                                                                isBooked && styles.slotTextDisabled
+                                                            ]}>
+                                                                {slot.time}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </>
+                                    )}
+
+                                {availabilitySlots.morning.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 &&
+                                    availabilitySlots.afternoon.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 &&
+                                    availabilitySlots.evening.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 && (
+                                        <Text style={styles.slotText}>No {appointmentTypeFilter || 'available'} slots for this date. Please select another date or doctor.</Text>
+                                    )}
+                            </>
+                        )}
 
                         {/* Patient Information */}
                         <Text style={styles.sectionLabel}>Patient Information</Text>
@@ -625,6 +811,21 @@ const styles = StyleSheet.create({
     slotText: {
         fontSize: 12,
         color: '#333',
+    },
+    slotCategoryLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 12,
+        marginBottom: 8,
+        paddingHorizontal: 4,
+    },
+    slotChipDisabled: {
+        backgroundColor: '#F5F5F5',
+        borderColor: '#E0E0E0',
+    },
+    slotTextDisabled: {
+        color: '#BBB',
     },
     textSelected: {
         color: '#FFF',

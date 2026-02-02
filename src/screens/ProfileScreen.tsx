@@ -170,7 +170,7 @@ const ProfileScreen = () => {
                             await AsyncStorage.clear();
                             navigation.reset({
                                 index: 0,
-                                routes: [{ name: 'Welcome' }]
+                                routes: [{ name: 'Main' }]
                             });
                         } catch (err) {
                             console.error('Logout error:', err);
@@ -251,6 +251,37 @@ const ProfileScreen = () => {
                     )}
                 </View>
 
+                {profile.about ? (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>About</Text>
+                        <Text style={styles.infoText}>{profile.about}</Text>
+                    </View>
+                ) : null}
+
+                {(profile.gender || (profile.languages && profile.languages.length > 0)) && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Additional Info</Text>
+                        {profile.gender ? (
+                            <View style={styles.infoRow}>
+                                <Icon name="person-outline" size={20} color="#666" />
+                                <Text style={styles.infoText}>Gender: {profile.gender}</Text>
+                            </View>
+                        ) : null}
+                        {profile.languages && profile.languages.length > 0 && (
+                            <View style={styles.infoRow}>
+                                <Icon name="language-outline" size={20} color="#666" />
+                                <Text style={styles.infoText}>Languages: {profile.languages.join(', ')}</Text>
+                            </View>
+                        )}
+                        {profile.superSpeciality ? (
+                            <View style={styles.infoRow}>
+                                <Icon name="medkit-outline" size={20} color="#666" />
+                                <Text style={styles.infoText}>Super Speciality: {profile.superSpeciality}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                )}
+
                 {profile.pmdcRegistrationNumber && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Professional Info</Text>
@@ -277,6 +308,52 @@ const ProfileScreen = () => {
                                 <Text style={styles.cardSub}>{edu.startYear} - {edu.endYear}</Text>
                             </View>
                         ))}
+                    </View>
+                )}
+
+                {(profile.awards && profile.awards.length > 0) || (profile.memberships && profile.memberships.length > 0) ? (
+                    <View style={styles.section}>
+                        {profile.awards && profile.awards.length > 0 && (
+                            <>
+                                <Text style={styles.sectionTitle}>Awards</Text>
+                                {profile.awards.map((awr: any, index: number) => (
+                                    <View key={index} style={styles.card}>
+                                        <Text style={styles.cardTitle}>{awr.name}</Text>
+                                        <Text style={styles.cardSub}>{awr.year}</Text>
+                                    </View>
+                                ))}
+                            </>
+                        )}
+                        {profile.memberships && profile.memberships.length > 0 && (
+                            <>
+                                <Text style={[styles.sectionTitle, { marginTop: profile.awards && profile.awards.length > 0 ? 15 : 0 }]}>Memberships</Text>
+                                {profile.memberships.map((mem: string, index: number) => (
+                                    <View key={index} style={styles.card}>
+                                        <Text style={styles.cardTitle}>{mem}</Text>
+                                    </View>
+                                ))}
+                            </>
+                        )}
+                    </View>
+                ) : null}
+
+                {profile.fees && (profile.fees.online || profile.fees.inclinic) && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Consultation Fees</Text>
+                        <View style={styles.feeContainer}>
+                            {profile.fees.online ? (
+                                <View style={styles.feeCard}>
+                                    <Text style={styles.feeLabel}>Online</Text>
+                                    <Text style={styles.feeAmount}>Rs. {profile.fees.online}</Text>
+                                </View>
+                            ) : null}
+                            {profile.fees.inclinic ? (
+                                <View style={styles.feeCard}>
+                                    <Text style={styles.feeLabel}>In-Clinic</Text>
+                                    <Text style={styles.feeAmount}>Rs. {profile.fees.inclinic}</Text>
+                                </View>
+                            ) : null}
+                        </View>
                     </View>
                 )}
 
@@ -342,7 +419,11 @@ const styles = StyleSheet.create({
     cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
     cardSub: { fontSize: 14, color: '#888', marginTop: 4 },
     logoutButtonBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginHorizontal: 20, marginTop: 20, borderWidth: 1, borderColor: '#FF6B6B' },
-    logoutButtonBottomText: { marginLeft: 8, fontSize: 16, fontWeight: '600', color: '#FF6B6B' }
+    logoutButtonBottomText: { marginLeft: 8, fontSize: 16, fontWeight: '600', color: '#FF6B6B' },
+    feeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+    feeCard: { flex: 1, backgroundColor: '#FAFAFA', padding: 12, borderRadius: 8, marginHorizontal: 4, alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
+    feeLabel: { fontSize: 14, color: '#666', marginBottom: 4 },
+    feeAmount: { fontSize: 16, fontWeight: 'bold', color: '#5B7FFF' }
 });
 
 export default ProfileScreen;
