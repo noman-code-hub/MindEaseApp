@@ -28,6 +28,10 @@ export interface Doctor {
     about?: string;
     clinicName?: string;
     location?: string;
+    fees?: {
+        online: string | number;
+        inclinic: string | number;
+    };
 }
 
 export interface SearchParams {

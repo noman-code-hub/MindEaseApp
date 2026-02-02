@@ -9,9 +9,11 @@ import {
     Alert,
     SafeAreaView,
     ScrollView,
+    ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { bookAppointment, startPayment } from '../services/appointmentService';
 
 type PaymentMethod = 'easypaisa' | 'jazzcash' | 'card';
 
@@ -31,6 +33,7 @@ const PaymentScreen = () => {
     const [otp, setOtp] = useState('');
     const [otpError, setOtpError] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [loading, setLoading] = useState(false);
 
     const otpInputRef = useRef<TextInput>(null);
 
@@ -72,16 +75,52 @@ const PaymentScreen = () => {
         if (otpError) setOtpError(false);
     };
 
-    const verifyOtp = () => {
+    const verifyOtp = async () => {
         if (otp === '1234') {
-            setIsSuccess(true);
-            setTimeout(() => {
+            setLoading(true);
+            try {
+                const params = route.params as any;
+                const bookingPayload = params?.bookingPayload;
+                const token = params?.token;
+                const userId = params?.userId;
+                const amount = params?.amount;
+
+                if (bookingPayload) {
+                    // 1. Create the appointment first
+                    const bookingResult = await bookAppointment(bookingPayload, token);
+                    const appointmentId = bookingResult.data?._id || bookingResult._id || bookingResult.data?.id;
+
+                    // 2. Start the payment process on the server
+                    if (appointmentId && userId && amount) {
+                        const paymentMethodName = selectedMethod === 'easypaisa' ? 'Easypaisa' :
+                            selectedMethod === 'jazzcash' ? 'JazzCash' : 'Visa/Mastercard';
+
+                        await startPayment({
+                            appointmentId,
+                            paymentMethod: paymentMethodName,
+                            amount: Number(amount),
+                            userId: userId
+                        }, token);
+                    }
+                }
+
+                setIsSuccess(true);
+                setTimeout(() => {
+                    setOtpModalVisible(false);
+                    setIsSuccess(false);
+                    setOtp('');
+                    Alert.alert("Success", "Appointment booked successfully!", [
+                        { text: "OK", onPress: () => navigation.navigate('Main' as never) }
+                    ]);
+                }, 2000);
+            } catch (error: any) {
+                console.error("Booking/Payment failed:", error);
                 setOtpModalVisible(false);
-                setIsSuccess(false);
                 setOtp('');
-                // Navigate to Main stack, implicitly hitting the first screen (Home)
-                navigation.navigate('Main' as never);
-            }, 2000);
+                Alert.alert("Process Failed", error.message || "Something went wrong. Please try again.");
+            } finally {
+                setLoading(false);
+            }
         } else {
             setOtpError(true);
         }
@@ -213,7 +252,12 @@ const PaymentScreen = () => {
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        {isSuccess ? (
+                        {loading ? (
+                            <View style={{ alignItems: 'center', padding: 20 }}>
+                                <ActivityIndicator size="large" color="#10B981" />
+                                <Text style={[styles.otpSubtitle, { marginTop: 16 }]}>Processing Booking...</Text>
+                            </View>
+                        ) : isSuccess ? (
                             <View style={{ alignItems: 'center', padding: 20 }}>
                                 <View style={{
                                     width: 60, height: 60, borderRadius: 30, backgroundColor: '#10B981',

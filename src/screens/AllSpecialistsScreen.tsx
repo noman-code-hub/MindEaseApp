@@ -31,7 +31,7 @@ const useDebounce = (value: string, delay: number) => {
 };
 
 const AllSpecialistsScreen = () => {
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const route = useRoute();
     const { initialQuery, specialityId } = (route.params as { initialQuery?: string; specialityId?: string }) || {};
 
@@ -188,6 +188,7 @@ const AllSpecialistsScreen = () => {
         setLoading(true);
         try {
             const token = await AsyncStorage.getItem('token');
+            const userId = await AsyncStorage.getItem('userId');
             const isClinic = (appointmentTypeFilter || 'online') === 'physical';
 
             let bookingPayload: any = {
@@ -201,26 +202,38 @@ const AllSpecialistsScreen = () => {
                 patientEmail: patientEmail.trim()
             };
 
+            // Calculate amount based on doctor's fees or default to 500
+            const amountStr = isClinic
+                ? (selectedDoctor.fees?.inclinic || '500')
+                : (selectedDoctor.fees?.online || '500');
+            const amount = parseInt(String(amountStr)) || 500;
+
             // Only add locationId if it's a clinic visit
             if (isClinic && selectedLocationId) {
                 bookingPayload.locationId = selectedLocationId;
             }
 
-            await bookAppointment(bookingPayload, token);
-
+            // Close modal and navigate to Payment screen
             setModalVisible(false);
-            Alert.alert("Success", "Appointment booked successfully!", [
-                { text: "OK", onPress: () => navigation.navigate('Appointment' as never) }
-            ]);
 
+            // Pass the payload, token, userId, and amount to Payment screen
+            navigation.navigate('Payment' as any, {
+                bookingPayload,
+                token,
+                userId: userId || '',
+                amount
+            } as any);
+
+            // Cleanup local state
             setPatientName('');
             setWhatsappNumber('');
             setPatientEmail('');
             setBookingReason('');
-            setSelectedDate(null);
             setSelectedTime(null);
+
         } catch (error: any) {
-            Alert.alert("Booking Failed", error.message || "Something went wrong.");
+            console.error("Booking prep error:", error);
+            Alert.alert("Error", "Failed to prepare booking. Please try again.");
         } finally {
             setLoading(false);
         }
