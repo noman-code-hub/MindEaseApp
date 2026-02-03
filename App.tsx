@@ -14,6 +14,9 @@ function App() {
   useEffect(() => {
     ToastAndroid.show('Start App JS', ToastAndroid.LONG);
     console.log('App started');
+    const isHermes = () => !!(globalThis as any).HermesInternal;
+    console.log('Is Hermes enabled?', isHermes());
+    ToastAndroid.show(`Hermes Enabled: ${isHermes()}`, ToastAndroid.LONG);
   }, []);
 
   return (

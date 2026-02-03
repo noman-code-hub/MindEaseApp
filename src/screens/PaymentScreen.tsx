@@ -13,12 +13,12 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { bookAppointment, startPayment } from '../services/appointmentService';
+import { bookAppointment, startPayment, confirmPayment, getPaymentStatus } from '../services/appointmentService';
 
 type PaymentMethod = 'easypaisa' | 'jazzcash' | 'card';
 
 const PaymentScreen = () => {
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const route = useRoute();
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>('easypaisa');
 
@@ -101,6 +101,22 @@ const PaymentScreen = () => {
                             amount: Number(amount),
                             userId: userId
                         }, token);
+
+                        // 3. Confirm payment via callback (simulated in-app after OTP)
+                        // In a real scenario, this would be triggered by the payment provider
+                        const transactionId = `TXN_${Math.floor(Math.random() * 100000000)}`;
+                        const paymentId = `PAY_${Math.floor(Math.random() * 100000000)}`;
+
+                        await confirmPayment({
+                            appointmentId,
+                            paymentId,
+                            transactionId,
+                            status: 'paid'
+                        }, token);
+
+                        // 4. Double check final status for verification
+                        const statusResult = await getPaymentStatus(appointmentId, token);
+                        console.log('[PAYMENT VERIFIED] Final Status:', statusResult.status || statusResult.data?.status || 'Active');
                     }
                 }
 
@@ -110,11 +126,11 @@ const PaymentScreen = () => {
                     setIsSuccess(false);
                     setOtp('');
                     Alert.alert("Success", "Appointment booked successfully!", [
-                        { text: "OK", onPress: () => navigation.navigate('Main' as never) }
+                        { text: "OK", onPress: () => navigation.navigate('Main' as any) }
                     ]);
                 }, 2000);
             } catch (error: any) {
-                console.error("Booking/Payment failed:", error);
+                console.error("Booking/Payment process failed:", error);
                 setOtpModalVisible(false);
                 setOtp('');
                 Alert.alert("Process Failed", error.message || "Something went wrong. Please try again.");

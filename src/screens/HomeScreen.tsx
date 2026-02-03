@@ -379,7 +379,12 @@ const HomeScreen = () => {
 
         // Fetch fresh availability
         try {
-            const freshAvailability = await getDoctorAvailability(doctor.doctorId, selectedDate || new Date().toISOString().split('T')[0]);
+            const freshAvailability = await getDoctorAvailability(
+                doctor.doctorId,
+                selectedDate || new Date().toISOString().split('T')[0],
+                type,
+                undefined // No location selected yet
+            );
             if (freshAvailability) {
                 if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
                     setAvailabilitySlots(freshAvailability);
@@ -397,7 +402,12 @@ const HomeScreen = () => {
             if (modalVisible && selectedDoctor && selectedDate) {
                 setIsFetchingSlots(true);
                 try {
-                    const data = await getDoctorAvailability(selectedDoctor.doctorId, selectedDate);
+                    const data = await getDoctorAvailability(
+                        selectedDoctor.doctorId,
+                        selectedDate,
+                        appointmentTypeFilter || 'online',
+                        selectedLocationId || undefined
+                    );
                     if (data) {
                         if (data.morning || data.afternoon || data.evening) {
                             setAvailabilitySlots({
@@ -422,7 +432,7 @@ const HomeScreen = () => {
         };
 
         fetchSlots();
-    }, [modalVisible, selectedDoctor, selectedDate]);
+    }, [modalVisible, selectedDoctor, selectedDate, appointmentTypeFilter, selectedLocationId]);
 
     const handleServiceBookPress = async (serviceName: string) => {
         setBookingType('service');
@@ -1226,9 +1236,19 @@ const HomeScreen = () => {
                                                                     setSelectedDoctor(doc);
                                                                     setIsDoctorDropdownOpen(false);
                                                                     // Fetch fresh availability when doctor is selected from dropdown
-                                                                    getDoctorAvailability(doc.doctorId).then(freshAvailability => {
-                                                                        if (freshAvailability && freshAvailability.length > 0) {
-                                                                            setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
+                                                                    getDoctorAvailability(
+                                                                        doc.doctorId,
+                                                                        selectedDate || new Date().toISOString().split('T')[0],
+                                                                        appointmentTypeFilter || 'online',
+                                                                        selectedLocationId || undefined
+                                                                    ).then(freshAvailability => {
+                                                                        if (freshAvailability) {
+                                                                            // Handle the object structure (morning/afternoon/evening) or array
+                                                                            if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
+                                                                                setAvailabilitySlots(freshAvailability);
+                                                                            } else if (Array.isArray(freshAvailability) && freshAvailability.length > 0) {
+                                                                                setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
+                                                                            }
                                                                         }
                                                                     }).catch(err => console.error('Failed to fetch fresh availability:', err));
                                                                 }}
@@ -1458,18 +1478,6 @@ const HomeScreen = () => {
                                     keyboardType="phone-pad"
                                     value={whatsappNumber}
                                     onChangeText={setWhatsappNumber}
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.fieldLabel}>Email Address</Text>
-                                <TextInput
-                                    style={styles.modalInput}
-                                    placeholder="Enter email address"
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    value={patientEmail}
-                                    onChangeText={setPatientEmail}
                                 />
                             </View>
 
@@ -2083,30 +2091,6 @@ const styles = StyleSheet.create({
         color: '#666',
         fontWeight: '500',
         marginRight: 4,
-    },
-    locationDropdown: {
-        position: 'absolute',
-        top: 60,
-        left: 20,
-        backgroundColor: 'white',
-        padding: 10,
-        borderRadius: 10,
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        zIndex: 200,
-    },
-    locationOption: {
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-    },
-    locationOptionText: {
-        fontSize: 14,
-        color: '#333',
     },
     heroCard: {
         backgroundColor: '#1A1F3A',

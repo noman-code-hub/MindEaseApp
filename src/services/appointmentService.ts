@@ -94,3 +94,83 @@ export const startPayment = async (paymentData: { appointmentId: string; payment
         throw error;
     }
 };
+
+export const confirmPayment = async (callbackData: { appointmentId: string; paymentId: string; transactionId: string; status: string }, token: string | null = null) => {
+    const CALLBACK_URL = 'https://appbookingbackend.onrender.com/api/payments/callback';
+    try {
+        const headers: { [key: string]: string } = {
+            'Content-Type': 'application/json',
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(CALLBACK_URL, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(callbackData)
+        });
+
+        const responseText = await response.text();
+        console.log(`[API REQUEST] POST ${CALLBACK_URL}`);
+        console.log('[API PAYLOAD]', JSON.stringify(callbackData, null, 2));
+        console.log(`[API RESPONSE] Status: ${response.status}`);
+        console.log('[API BODY]', responseText);
+
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Server returned invalid response: ${response.status}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(result.message || result.error || `Payment callback failed with status ${response.status}`);
+        }
+
+        return result;
+    } catch (error) {
+        console.error('Error confirming payment:', error);
+        throw error;
+    }
+};
+
+export const getPaymentStatus = async (appointmentId: string, token: string | null = null) => {
+    const STATUS_URL = `https://appbookingbackend.onrender.com/api/payments/status/${appointmentId}`;
+    try {
+        const headers: { [key: string]: string } = {
+            'Content-Type': 'application/json',
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(STATUS_URL, {
+            method: 'GET',
+            headers
+        });
+
+        const responseText = await response.text();
+        console.log(`[API REQUEST] GET ${STATUS_URL}`);
+        console.log(`[API RESPONSE] Status: ${response.status}`);
+        console.log('[API BODY]', responseText);
+
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Server returned invalid response: ${response.status}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(result.message || result.error || `Failed to fetch payment status: ${response.status}`);
+        }
+
+        return result;
+    } catch (error) {
+        console.error('Error fetching payment status:', error);
+        throw error;
+    }
+};

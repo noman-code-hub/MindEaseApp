@@ -423,17 +423,31 @@ const formatMinutesToTime = (minutes: number): string => {
 };
 
 // Get doctor availability
-export const getDoctorAvailability = async (doctorId: string, date?: string): Promise<any> => {
+export const getDoctorAvailability = async (
+    doctorId: string,
+    date: string,
+    appointmentType: 'online' | 'inclinic' | 'physical',
+    locationId?: string
+): Promise<any> => {
     try {
         if (!doctorId) {
             console.error('getDoctorAvailability: doctorId is missing');
             return null;
         }
 
-        let url = `${BASE_URL}/${doctorId}/availability`;
-        if (date) {
-            url += `?date=${date}`;
+        const queryParams = new URLSearchParams();
+        queryParams.append('doctorId', doctorId);
+        queryParams.append('date', date);
+        // Map 'physical' to 'inclinic' if needed, or keep as is based on backend expectation. 
+        // User screenshot shows 'inclinic'.
+        const typeParam = appointmentType === 'physical' ? 'inclinic' : appointmentType;
+        queryParams.append('appointmentType', typeParam);
+
+        if (locationId) {
+            queryParams.append('locationId', locationId);
         }
+
+        const url = `${BASE_URL}/available-slots?${queryParams.toString()}`;
 
         console.log('Fetching doctor availability from:', url);
 
@@ -452,10 +466,9 @@ export const getDoctorAvailability = async (doctorId: string, date?: string): Pr
             console.log('Get doctor availability success structure check');
 
             let rawSlots: any[] = [];
-            // Handle various response structures:
-            // 1. { success: true, data: { availability: [...] } } <- User's current case
-            // 2. { success: true, data: [...] }
-            // 3. { morning: [], ... }
+
+            // Expected structure based on user screenshot: { success: true, data: [...] } or data directly?
+            // User screenshot shows success response. Assuming data structure is similar to before or straightforward array.
 
             if (data.success && data.data) {
                 if (data.data.availability && Array.isArray(data.data.availability)) {
@@ -465,15 +478,11 @@ export const getDoctorAvailability = async (doctorId: string, date?: string): Pr
                 } else if (data.data.morning || data.data.afternoon || data.data.evening) {
                     return data.data;
                 }
-            } else if (data.availability && Array.isArray(data.availability)) {
-                rawSlots = data.availability;
-            } else if (data.morning || data.afternoon || data.evening) {
-                return data;
             } else if (Array.isArray(data)) {
                 rawSlots = data;
             }
 
-            // Splitting logic for ranges -> 15 min slots
+            // Splitting logic for ranges -> 15 min slots (keeping existing logic for safety)
             const result: { morning: any[], afternoon: any[], evening: any[] } = {
                 morning: [],
                 afternoon: [],
@@ -490,19 +499,19 @@ export const getDoctorAvailability = async (doctorId: string, date?: string): Pr
                     return;
                 }
 
-                // If it's a range (startTime, endTime)
+                // If it's a range (startTime, endTime)  - PRESERVE EXISTING LOGIC
                 if (slot.startTime && slot.endTime) {
                     const startMins = parseTimeToMinutes(slot.startTime);
                     const endMins = parseTimeToMinutes(slot.endTime);
-                    const locationId = (slot as any).locationId;
+                    const slotLocId = (slot as any).locationId || locationId; // Use param if slot doesn't have it
 
                     for (let m = startMins; m < endMins; m += 15) {
                         const time = formatMinutesToTime(m);
                         const newSlot = {
                             time,
                             isBooked: slot.isBooked || false,
-                            locationId,
-                            appointmentType: slot.appointmentType
+                            locationId: slotLocId,
+                            appointmentType: slot.appointmentType || appointmentType
                         };
 
                         if (m < 720) result.morning.push(newSlot);

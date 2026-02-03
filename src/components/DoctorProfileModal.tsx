@@ -3,6 +3,14 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Alert, Ima
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Doctor } from '../services/doctorService';
 
+interface DoctorProfileModalProps {
+    visible: boolean;
+    onClose: () => void;
+    doctor: Doctor | null;
+    onBookType: (type: 'online' | 'physical') => void;
+    onDetail?: () => void;
+}
+
 const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClose, doctor, onBookType, onDetail }) => {
     if (!doctor) return null;
 

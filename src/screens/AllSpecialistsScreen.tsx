@@ -55,7 +55,6 @@ const AllSpecialistsScreen = () => {
     // Patient Form State
     const [patientName, setPatientName] = useState('');
     const [whatsappNumber, setWhatsappNumber] = useState('');
-    const [patientEmail, setPatientEmail] = useState('');
 
     // Profile Modal State
     const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
@@ -111,12 +110,16 @@ const AllSpecialistsScreen = () => {
         setBookingReason('');
         setPatientName('');
         setWhatsappNumber('');
-        setPatientEmail('');
         setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
 
         // Fetch fresh availability
         try {
-            const freshAvailability = await getDoctorAvailability(doctor.doctorId, selectedDate || new Date().toISOString().split('T')[0]);
+            const freshAvailability = await getDoctorAvailability(
+                doctor.doctorId,
+                selectedDate || new Date().toISOString().split('T')[0],
+                type,
+                undefined
+            );
             if (freshAvailability) {
                 if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
                     setAvailabilitySlots(freshAvailability);
@@ -134,7 +137,12 @@ const AllSpecialistsScreen = () => {
             if (modalVisible && selectedDoctor && selectedDate) {
                 setIsFetchingSlots(true);
                 try {
-                    const data = await getDoctorAvailability(selectedDoctor.doctorId, selectedDate);
+                    const data = await getDoctorAvailability(
+                        selectedDoctor.doctorId,
+                        selectedDate,
+                        appointmentTypeFilter || 'online',
+                        selectedLocationId || undefined
+                    );
                     if (data) {
                         if (data.morning || data.afternoon || data.evening) {
                             setAvailabilitySlots({
@@ -156,15 +164,8 @@ const AllSpecialistsScreen = () => {
         };
 
         fetchSlots();
-    }, [modalVisible, selectedDoctor, selectedDate]);
+    }, [modalVisible, selectedDoctor, selectedDate, appointmentTypeFilter, selectedLocationId]);
 
-    const handleBookFromProfile = () => {
-        setIsProfileModalVisible(false);
-        // Default to online if booked from profile generic button, or show choice?
-        // For now, default to no filter or 'online'
-        setAppointmentTypeFilter(null);
-        setModalVisible(true);
-    };
 
     const handleDetailView = () => {
         setIsProfileModalVisible(false);
@@ -180,8 +181,8 @@ const AllSpecialistsScreen = () => {
             Alert.alert("Missing Info", "Please select a Date and Time.");
             return;
         }
-        if (!patientName.trim() || !whatsappNumber.trim() || !patientEmail.trim()) {
-            Alert.alert("Missing Info", "Please provide patient name, phone, and email.");
+        if (!patientName.trim() || !whatsappNumber.trim()) {
+            Alert.alert("Missing Info", "Please provide patient name and phone number.");
             return;
         }
 
@@ -198,8 +199,7 @@ const AllSpecialistsScreen = () => {
                 appointmentType: (isClinic && token) ? 'inclinic' : (appointmentTypeFilter || 'online'),
                 reason: bookingReason || "General Consultation",
                 patientName: patientName.trim(),
-                patientPhone: whatsappNumber.trim(),
-                patientEmail: patientEmail.trim()
+                patientPhone: whatsappNumber.trim()
             };
 
             // Calculate amount based on doctor's fees or default to 500
@@ -227,7 +227,6 @@ const AllSpecialistsScreen = () => {
             // Cleanup local state
             setPatientName('');
             setWhatsappNumber('');
-            setPatientEmail('');
             setBookingReason('');
             setSelectedTime(null);
 
@@ -367,7 +366,12 @@ const AllSpecialistsScreen = () => {
                 visible={isProfileModalVisible}
                 onClose={() => setIsProfileModalVisible(false)}
                 doctor={selectedDoctor}
-                onBook={handleBookFromProfile}
+                onBookType={(type) => {
+                    setIsProfileModalVisible(false);
+                    if (selectedDoctor) {
+                        handleSpecialistBookPress(selectedDoctor, type);
+                    }
+                }}
                 onDetail={handleDetailView}
             />
 
@@ -397,6 +401,14 @@ const AllSpecialistsScreen = () => {
                                     arrowColor: '#5B7FFF',
                                 }}
                             />
+                        </View>
+
+                        {/* Doctor Name */}
+                        <View style={styles.readOnlyField}>
+                            <View style={styles.dropdownContainer}>
+                                <Text style={styles.fieldLabel}>Doctor</Text>
+                                <Text style={styles.readOnlyText}>Dr. {selectedDoctor?.name}</Text>
+                            </View>
                         </View>
 
                         {/* Slots */}
@@ -600,18 +612,6 @@ const AllSpecialistsScreen = () => {
                                 keyboardType="phone-pad"
                                 value={whatsappNumber}
                                 onChangeText={setWhatsappNumber}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.fieldLabel}>Email Address</Text>
-                            <TextInput
-                                style={styles.modalInput}
-                                placeholder="Enter email address"
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                value={patientEmail}
-                                onChangeText={setPatientEmail}
                             />
                         </View>
                         <View style={{ marginTop: 16 }}>
@@ -874,6 +874,21 @@ const styles = StyleSheet.create({
     confirmButton: { backgroundColor: '#5B7FFF' },
     cancelButtonText: { color: '#666', fontWeight: '600' },
     confirmButtonText: { color: '#FFF', fontWeight: '600' },
+
+    // Missing Styles
+    dropdownContainer: {
+        marginBottom: 10,
+    },
+    readOnlyField: {
+        backgroundColor: '#F0F0F0',
+        padding: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+    },
+    readOnlyText: {
+        color: '#666',
+    },
 });
 
 export default AllSpecialistsScreen;

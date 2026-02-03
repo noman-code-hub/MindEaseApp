@@ -8,7 +8,9 @@ import {
     ScrollView,
     Alert,
     Switch,
-    ActivityIndicator
+    ActivityIndicator,
+    Modal,
+    FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -16,11 +18,135 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSpecialities, Speciality } from '../services/doctorService';
 
+// CONSTANTS
+const LANGUAGES = ['English', 'Urdu', 'Pashto'];
+const SERVICES = ['Consultation', 'Online Consultation', 'Surgery', 'Home Visit', 'Therapy', 'Follow-up'];
+const YEARS = Array.from({ length: 50 }, (_, i) => String(new Date().getFullYear() - i));
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2);
+    const m = (i % 2) * 30;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+});
+
+interface SelectionModalProps {
+    visible: boolean;
+    title: string;
+    options: string[];
+    selectedValues: string | string[];
+    onSelect: (value: string | string[]) => void;
+    onClose: () => void;
+    multiSelect?: boolean;
+}
+
+const SelectionModal = ({ visible, title, options, selectedValues, onSelect, onClose, multiSelect }: SelectionModalProps) => {
+    const [tempSelected, setTempSelected] = React.useState<string | string[]>(selectedValues);
+
+    React.useEffect(() => {
+        setTempSelected(selectedValues);
+    }, [visible, selectedValues]);
+
+    const toggleSelection = (option: string) => {
+        if (multiSelect) {
+            const current = Array.isArray(tempSelected) ? [...tempSelected] : [];
+            if (current.includes(option)) {
+                setTempSelected(current.filter(item => item !== option));
+            } else {
+                setTempSelected([...current, option]);
+            }
+        } else {
+            setTempSelected(option);
+            onSelect(option); // Auto-close/select for single
+            onClose();
+        }
+    };
+
+    const handleConfirm = () => {
+        onSelect(tempSelected);
+        onClose();
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>{title}</Text>
+                        <TouchableOpacity onPress={onClose}><Icon name="close" size={24} color="#333" /></TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={options}
+                        keyExtractor={item => item}
+                        renderItem={({ item }) => {
+                            const isSelected = multiSelect
+                                ? (Array.isArray(tempSelected) && tempSelected.includes(item))
+                                : tempSelected === item;
+                            return (
+                                <TouchableOpacity
+                                    style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                                    onPress={() => toggleSelection(item)}
+                                >
+                                    <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>{item}</Text>
+                                    {isSelected && <Icon name="checkmark" size={20} color="#5B7FFF" />}
+                                </TouchableOpacity>
+                            );
+                        }}
+                    />
+                    {multiSelect && (
+                        <TouchableOpacity style={styles.modalConfirmButton} onPress={handleConfirm}>
+                            <Text style={styles.modalConfirmButtonText}>Confirm</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+// Helper for Phone Formatting
+const formatPhoneNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length > 4) {
+        return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 11)}`;
+    }
+    return cleaned;
+};
+
 const STEPS = ['Personal Info', 'Education', 'Locations', 'Availability'];
 
 const DoctorProfileSetupScreen = () => {
     const navigation = useNavigation<any>();
     const [currentStep, setCurrentStep] = useState(0);
+
+    // Modal State
+    const [modalConfig, setModalConfig] = useState<{
+        visible: boolean;
+        title: string;
+        options: string[];
+        selectedValues: string | string[];
+        multiSelect: boolean;
+        onSelect: (val: any) => void;
+    }>({
+        visible: false,
+        title: '',
+        options: [],
+        selectedValues: [],
+        multiSelect: false,
+        onSelect: () => { },
+    });
+
+    const openModal = (
+        title: string,
+        options: string[],
+        selectedValues: string | string[],
+        multiSelect: boolean,
+        onSelect: (val: any) => void
+    ) => {
+        setModalConfig({ visible: true, title, options, selectedValues, multiSelect, onSelect });
+    };
+
+    const closeModal = () => {
+        setModalConfig(prev => ({ ...prev, visible: false }));
+    };
 
     // Form State
     const [profileData, setProfileData] = useState({
@@ -429,18 +555,24 @@ const DoctorProfileSetupScreen = () => {
                 multiline
             />
 
-            <TextInput
-                style={styles.input}
-                placeholder="Languages (comma separated, e.g. English, Urdu)"
-                value={profileData.languages.join(', ')}
-                onChangeText={(t) => updateProfile('languages', t.split(',').map(s => s.trim()).filter(s => s))}
-            />
+            <Text style={styles.label}>Languages</Text>
+            <TouchableOpacity
+                style={styles.selectButton}
+                onPress={() => openModal('Select Languages', LANGUAGES, profileData.languages, true, (vals) => updateProfile('languages', vals))}
+            >
+                {profileData.languages && profileData.languages.length > 0 ? (
+                    <Text style={styles.selectButtonText}>{profileData.languages.join(', ')}</Text>
+                ) : (
+                    <Text style={styles.selectButtonPlaceholder}>Select Languages</Text>
+                )}
+                <Icon name="chevron-down" size={20} color="#666" />
+            </TouchableOpacity>
             <TextInput
                 style={styles.input}
                 placeholder="Emergency Contact"
                 keyboardType="phone-pad"
                 value={profileData.emergencyContact}
-                onChangeText={(t) => updateProfile('emergencyContact', t)}
+                onChangeText={(t) => updateProfile('emergencyContact', formatPhoneNumber(t))}
             />
             <TextInput
                 style={styles.input}
@@ -530,21 +662,20 @@ const DoctorProfileSetupScreen = () => {
                 ) : null;
             })()}
 
-            <TextInput
-                style={styles.input}
-                placeholder="Services (comma separated, e.g. Consultation, Surgery)"
-                value={profileData.services.join(', ')}
-                onChangeText={(t) => updateProfile('services', t.split(',').map(s => s.trim()).filter(s => s))}
-                multiline
-            />
+            <Text style={styles.label}>Services</Text>
+            <TouchableOpacity
+                style={styles.selectButton}
+                onPress={() => openModal('Select Services', SERVICES, profileData.services, true, (vals) => updateProfile('services', vals))}
+            >
+                {profileData.services && profileData.services.length > 0 ? (
+                    <Text style={styles.selectButtonText}>{profileData.services.join(', ')}</Text>
+                ) : (
+                    <Text style={styles.selectButtonPlaceholder}>Select Services</Text>
+                )}
+                <Icon name="chevron-down" size={20} color="#666" />
+            </TouchableOpacity>
 
-            <TextInput
-                style={styles.input}
-                placeholder="Consultation Time (minutes)"
-                keyboardType="numeric"
-                value={profileData.consultationTime}
-                onChangeText={(t) => updateProfile('consultationTime', t)}
-            />
+
         </View>
     );
 
@@ -592,8 +723,22 @@ const DoctorProfileSetupScreen = () => {
                 <TextInput style={styles.input} placeholder="Degree" value={tempEducation.degree} onChangeText={t => setTempEducation({ ...tempEducation, degree: t })} />
                 <TextInput style={styles.input} placeholder="Institute" value={tempEducation.institute} onChangeText={t => setTempEducation({ ...tempEducation, institute: t })} />
                 <View style={styles.row}>
-                    <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} placeholder="Start Year" keyboardType="numeric" value={tempEducation.startYear} onChangeText={t => setTempEducation({ ...tempEducation, startYear: t })} />
-                    <TextInput style={[styles.input, { flex: 1 }]} placeholder="End Year" keyboardType="numeric" value={tempEducation.endYear} onChangeText={t => setTempEducation({ ...tempEducation, endYear: t })} />
+                    <TouchableOpacity
+                        style={[styles.selectButton, { flex: 1, marginRight: 8 }]}
+                        onPress={() => openModal('Start Year', YEARS, tempEducation.startYear, false, (val) => setTempEducation({ ...tempEducation, startYear: val as string }))}
+                    >
+                        <Text style={tempEducation.startYear ? styles.selectButtonText : styles.selectButtonPlaceholder}>
+                            {tempEducation.startYear || 'Start Year'}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.selectButton, { flex: 1 }]}
+                        onPress={() => openModal('End Year', YEARS, tempEducation.endYear, false, (val) => setTempEducation({ ...tempEducation, endYear: val as string }))}
+                    >
+                        <Text style={tempEducation.endYear ? styles.selectButtonText : styles.selectButtonPlaceholder}>
+                            {tempEducation.endYear || 'End Year'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
                 <TouchableOpacity style={styles.addButton} onPress={addEducation}>
                     <Text style={styles.addButtonText}>Add Education</Text>
@@ -700,7 +845,7 @@ const DoctorProfileSetupScreen = () => {
                 </View>
 
                 <TextInput style={styles.input} placeholder="Location Name (e.g. City Hospital or Online)" value={tempLocation.name} onChangeText={t => setTempLocation({ ...tempLocation, name: t })} />
-                <TextInput style={styles.input} placeholder="Phone" keyboardType="phone-pad" value={tempLocation.phone} onChangeText={t => setTempLocation({ ...tempLocation, phone: t })} />
+                <TextInput style={styles.input} placeholder="Phone" keyboardType="phone-pad" value={tempLocation.phone} onChangeText={t => setTempLocation({ ...tempLocation, phone: formatPhoneNumber(t) })} />
 
                 {!tempLocation.isOnline && (
                     <View style={styles.row}>
@@ -787,8 +932,23 @@ const DoctorProfileSetupScreen = () => {
                 </View>
 
                 <View style={styles.row}>
-                    <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} placeholder="Start Time (09:00)" value={tempAvailability.startTime} onChangeText={t => setTempAvailability({ ...tempAvailability, startTime: t })} />
-                    <TextInput style={[styles.input, { flex: 1 }]} placeholder="End Time (17:00)" value={tempAvailability.endTime} onChangeText={t => setTempAvailability({ ...tempAvailability, endTime: t })} />
+                    <TouchableOpacity
+                        style={[styles.selectButton, { flex: 1, marginRight: 8 }]}
+                        onPress={() => openModal('Start Time', TIME_SLOTS, tempAvailability.startTime, false, (val) => setTempAvailability({ ...tempAvailability, startTime: val as string }))}
+                    >
+                        <Text style={tempAvailability.startTime ? styles.selectButtonText : styles.selectButtonPlaceholder}>
+                            {tempAvailability.startTime || 'Start Time'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.selectButton, { flex: 1 }]}
+                        onPress={() => openModal('End Time', TIME_SLOTS, tempAvailability.endTime, false, (val) => setTempAvailability({ ...tempAvailability, endTime: val as string }))}
+                    >
+                        <Text style={tempAvailability.endTime ? styles.selectButtonText : styles.selectButtonPlaceholder}>
+                            {tempAvailability.endTime || 'End Time'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
                 <Text style={styles.label}>Appointment Type</Text>
@@ -849,6 +1009,15 @@ const DoctorProfileSetupScreen = () => {
                     </Text>
                 </TouchableOpacity>
             </View>
+            <SelectionModal
+                visible={modalConfig.visible}
+                title={modalConfig.title}
+                options={modalConfig.options}
+                selectedValues={modalConfig.selectedValues}
+                multiSelect={modalConfig.multiSelect}
+                onSelect={modalConfig.onSelect}
+                onClose={closeModal}
+            />
         </SafeAreaView>
     );
 };
@@ -889,6 +1058,19 @@ const styles = StyleSheet.create({
     label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 8 },
     pickerContainer: { marginBottom: 12 },
     chipScroll: { flexGrow: 0 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', padding: 20 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    modalTitle: { fontSize: 18, fontWeight: 'bold' },
+    modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+    modalOptionSelected: { backgroundColor: '#F0F5FF' },
+    modalOptionText: { fontSize: 16, color: '#333' },
+    modalOptionTextSelected: { color: '#5B7FFF', fontWeight: 'bold' },
+    modalConfirmButton: { backgroundColor: '#5B7FFF', padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 16 },
+    modalConfirmButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+    selectButton: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 12, marginBottom: 12, backgroundColor: '#FAFAFA', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    selectButtonText: { color: '#333', fontSize: 16 },
+    selectButtonPlaceholder: { color: '#999', fontSize: 16 },
 });
 
 export default DoctorProfileSetupScreen;
