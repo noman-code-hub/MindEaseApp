@@ -810,27 +810,30 @@ const DoctorProfileSetupScreen = () => {
     );
 
     const addLocation = () => {
-        if (!tempLocation.name) return Alert.alert('Error', 'Name is required');
+        // If online, skip name/phone validation as they are hidden
+        if (!tempLocation.isOnline) {
+            if (!tempLocation.name) return Alert.alert('Error', 'Name is required');
 
-        // Validate phone number format: +92 followed by 11 digits (total 14 characters)
-        if (tempLocation.phone) {
-            const phoneRegex = /^\+92\d{11}$/;
-            if (!phoneRegex.test(tempLocation.phone)) {
-                return Alert.alert(
-                    'Invalid Phone Format',
-                    'Phone number must be in format: +92 followed by 11 digits (e.g., +923018153293)'
-                );
+            // Validate phone number format: +92 followed by 11 digits (total 14 characters)
+            if (tempLocation.phone) {
+                const phoneRegex = /^\+92\d{11}$/;
+                if (!phoneRegex.test(tempLocation.phone)) {
+                    return Alert.alert(
+                        'Invalid Phone Format',
+                        'Phone number must be in format: +92 followed by 11 digits (e.g., +923018153293)'
+                    );
+                }
+            }
+
+            // If not online, lat/lng required
+            if (!tempLocation.lat || !tempLocation.lng) {
+                return Alert.alert('Error', 'Coordinates required for in-clinic locations');
             }
         }
 
-        // If not online, lat/lng required
-        if (!tempLocation.isOnline && (!tempLocation.lat || !tempLocation.lng)) {
-            return Alert.alert('Error', 'Coordinates required for in-clinic locations');
-        }
-
         const loc: any = {
-            name: tempLocation.name,
-            phone: tempLocation.phone
+            name: tempLocation.isOnline ? 'Online Consultation' : tempLocation.name,
+            phone: tempLocation.isOnline ? '' : tempLocation.phone
         };
 
         // Always add coordinates - for online consultations, use default (0, 0)
@@ -847,7 +850,7 @@ const DoctorProfileSetupScreen = () => {
 
     const renderLocations = () => (
         <View style={styles.formContainer}>
-            <Text style={styles.sectionTitle}>Locations</Text>
+            <Text style={styles.sectionTitle}>Practice Details</Text>
 
             {profileData.locations.map((loc, index) => (
                 <View key={index} style={styles.cardItem}>
@@ -869,21 +872,25 @@ const DoctorProfileSetupScreen = () => {
             ))}
 
             <View style={styles.addItemContainer}>
-                <Text style={styles.subTitle}>Add Location</Text>
+                <Text style={styles.subTitle}>Add Practice Details</Text>
 
                 <View style={styles.row}>
                     <Text>Online Consultation?</Text>
                     <Switch value={tempLocation.isOnline} onValueChange={v => setTempLocation({ ...tempLocation, isOnline: v })} />
                 </View>
 
-                <TextInput style={styles.input} placeholder="Location Name (e.g. City Hospital or Online)" value={tempLocation.name} onChangeText={t => setTempLocation({ ...tempLocation, name: t })} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Phone (+92 followed by 11 digits, e.g., +923018153293)"
-                    keyboardType="phone-pad"
-                    value={tempLocation.phone}
-                    onChangeText={t => setTempLocation({ ...tempLocation, phone: formatPhoneNumber(t) })}
-                />
+                {!tempLocation.isOnline && (
+                    <>
+                        <TextInput style={styles.input} placeholder="Hospital Name (e.g. City Hospital)" value={tempLocation.name} onChangeText={t => setTempLocation({ ...tempLocation, name: t })} />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Phone (+92 11 digits, e.g., +923018153293)"
+                            keyboardType="phone-pad"
+                            value={tempLocation.phone}
+                            onChangeText={t => setTempLocation({ ...tempLocation, phone: formatPhoneNumber(t) })}
+                        />
+                    </>
+                )}
 
                 {!tempLocation.isOnline && (
                     <>
@@ -912,7 +919,7 @@ const DoctorProfileSetupScreen = () => {
                 )}
 
                 <TouchableOpacity style={styles.addButton} onPress={addLocation}>
-                    <Text style={styles.addButtonText}>Add Location</Text>
+                    <Text style={styles.addButtonText}>Add Practice Details</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -1060,7 +1067,7 @@ const DoctorProfileSetupScreen = () => {
             </ScrollView>
 
             <View style={styles.footer}>
-                <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+                <TouchableOpacity style={styles.nextButton} onPress={handleNext} disabled={loading}>
                     <Text style={styles.nextButtonText}>
                         {loading ? <ActivityIndicator color="#FFF" /> : (currentStep === STEPS.length - 1 ? 'Save & Finish' : 'Next')}
                     </Text>

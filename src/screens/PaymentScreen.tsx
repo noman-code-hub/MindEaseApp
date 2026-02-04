@@ -181,9 +181,7 @@ const PaymentScreen = () => {
                     setOtpModalVisible(false);
                     setIsSuccess(false);
                     setOtp('');
-                    Alert.alert("Success", "Appointment booked successfully!", [
-                        { text: "OK", onPress: () => navigation.navigate('Main' as any) }
-                    ]);
+                    navigation.navigate('Main' as any);
                 }, 2000);
             } catch (error: any) {
                 console.error('\n❌ ========== PAYMENT FLOW FAILED ==========');
@@ -317,8 +315,8 @@ const PaymentScreen = () => {
                 <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.continueButton} onPress={handleProceed}>
-                    <Text style={styles.continueButtonText}>Continue</Text>
+                <TouchableOpacity style={[styles.continueButton, loading && { opacity: 0.7 }]} onPress={handleProceed} disabled={loading}>
+                    {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.continueButtonText}>Continue</Text>}
                 </TouchableOpacity>
             </View>
 
