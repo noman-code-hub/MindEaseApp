@@ -188,8 +188,20 @@ const AllSpecialistsScreen = () => {
 
         setLoading(true);
         try {
+            console.log('\n📅 ========== BOOKING APPOINTMENT (All Specialists) ==========');
+
             const token = await AsyncStorage.getItem('token');
             const userId = await AsyncStorage.getItem('userId');
+
+            // Debug: Log all AsyncStorage keys
+            const allKeys = await AsyncStorage.getAllKeys();
+            console.log('[BOOKING] All AsyncStorage keys:', allKeys);
+            console.log('[BOOKING] Retrieved userId:', userId || 'EMPTY/NULL');
+            console.log('[BOOKING] Retrieved token:', token ? 'Present' : 'Missing');
+
+            if (!userId || userId.trim() === '') {
+                console.warn('[BOOKING] ⚠️ WARNING: userId is empty!');
+            }
             const isClinic = (appointmentTypeFilter || 'online') === 'physical';
 
             let bookingPayload: any = {
@@ -208,6 +220,9 @@ const AllSpecialistsScreen = () => {
                 : (selectedDoctor.fees?.online || '500');
             const amount = parseInt(String(amountStr)) || 500;
 
+            console.log('[BOOKING] Doctor fees:', selectedDoctor.fees);
+            console.log('[BOOKING] Calculated amount:', amount);
+
             // Only add locationId if it's a clinic visit
             if (isClinic && selectedLocationId) {
                 bookingPayload.locationId = selectedLocationId;
@@ -215,6 +230,9 @@ const AllSpecialistsScreen = () => {
 
             // Close modal and navigate to Payment screen
             setModalVisible(false);
+
+            console.log('[BOOKING] Navigating to Payment with userId:', userId || 'EMPTY');
+            console.log('==========================================\n');
 
             // Pass the payload, token, userId, and amount to Payment screen
             navigation.navigate('Payment' as any, {
@@ -384,7 +402,7 @@ const AllSpecialistsScreen = () => {
             >
                 <View style={styles.modalOverlay}>
                     <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-                        <Text style={styles.modalTitle}>Schedule Appointment</Text>
+                        <Text style={styles.modalTitle}>Schedule {appointmentTypeFilter === 'physical' ? 'In-Clinic' : 'Online'} Appointment</Text>
 
                         {/* Calendar */}
                         <Text style={styles.sectionLabel}>Select Date</Text>

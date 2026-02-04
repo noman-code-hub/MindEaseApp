@@ -28,6 +28,19 @@ export interface Doctor {
     about?: string;
     clinicName?: string;
     location?: string;
+    locations?: {
+        _id: string;
+        name: string;
+        phone: string;
+        address?: {
+            city: string;
+            street: string;
+        };
+        coordinates?: {
+            lat: number;
+            lng: number;
+        };
+    }[];
     fees?: {
         online: string | number;
         inclinic: string | number;
@@ -82,6 +95,8 @@ const mapDoctorData = (doc: any): Doctor => ({
     about: doc.about,
     clinicName: doc.clinicName || doc.hospitalName,
     location: doc.address?.city,
+    locations: doc.locations || [],
+    fees: doc.fees || { online: '500', inclinic: '500' },
     color: generateColor(doc.name)
 });
 

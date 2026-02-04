@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const OtpVerificationScreen = () => {
     const navigation = useNavigation<any>();
@@ -85,16 +86,34 @@ const OtpVerificationScreen = () => {
             const data = await response.json();
 
             if (response.status === 200 || response.status === 201) {
-                // Check role passed from params (we need to ensure it's passed)
-                // If not passed, we might default to Main, but let's try to get it.
-                // Assuming we passed 'role' alongside userId.
+                const responseUserId = data.data?.userId || data.data?._id || data.userId || userId;
+                const token = data.data?.accessToken || data.data?.token || data.token || data.accessToken;
+                const userRole = data.data?.role || role || 'patient';
+                const userWhatsapp = phoneNumber;
 
-                if (role && role.toLowerCase() === 'doctor') {
+                console.log('[OTP] OTP Verified. Saving session:', { responseUserId, userRole, hasToken: !!token });
+
+                // Store session data
+                console.log('[OTP] Storing userId:', responseUserId || 'EMPTY');
+                if (token) await AsyncStorage.setItem('token', token);
+                if (responseUserId) await AsyncStorage.setItem('userId', responseUserId);
+                if (userRole) await AsyncStorage.setItem('role', userRole);
+                if (userWhatsapp) await AsyncStorage.setItem('whatsappnumber', userWhatsapp);
+
+                // Verify storage
+                const verifyUserId = await AsyncStorage.getItem('userId');
+                console.log('[OTP] ✓ Verified userId stored:', verifyUserId || 'EMPTY');
+
+                if (!verifyUserId || verifyUserId.trim() === '') {
+                    console.error('[OTP] ❌ ERROR: userId was not stored properly!');
+                }
+
+                if (userRole.toLowerCase() === 'doctor') {
                     navigation.reset({
                         index: 0,
                         routes: [{
                             name: 'DoctorProfileSetup',
-                            params: { userId: userId } // userId is already in scope
+                            params: { userId: responseUserId, token: token } // Pass token just in case
                         }],
                     });
                 } else {

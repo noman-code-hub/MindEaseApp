@@ -102,13 +102,26 @@ const SelectionModal = ({ visible, title, options, selectedValues, onSelect, onC
     );
 };
 
-// Helper for Phone Formatting
+// Helper for Phone Formatting - Pakistan Format (+92 followed by 11 digits)
 const formatPhoneNumber = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length > 4) {
-        return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 11)}`;
+    // Remove all non-digit characters
+    let cleaned = value.replace(/\D/g, '');
+
+    // Remove leading 0 if present (Pakistani mobile numbers often start with 0)
+    if (cleaned.startsWith('0')) {
+        cleaned = cleaned.substring(1);
     }
-    return cleaned;
+
+    // Remove 92 prefix if user typed it (we'll add +92 ourselves)
+    if (cleaned.startsWith('92')) {
+        cleaned = cleaned.substring(2);
+    }
+
+    // Limit to 11 digits (after country code)
+    cleaned = cleaned.substring(0, 11);
+
+    // Return with +92 prefix
+    return cleaned.length > 0 ? `+92${cleaned}` : '';
 };
 
 const STEPS = ['Personal Info', 'Education', 'Locations', 'Availability'];
@@ -209,6 +222,12 @@ const DoctorProfileSetupScreen = () => {
     const { userId: routeUserId, token: routeToken } = (route.params as { userId: string; token: string }) || {};
 
     React.useEffect(() => {
+        const params = route.params as any;
+        // Prevent re-fetching if we are just returning from location selection
+        if (params?.selectedLocation) {
+            return;
+        }
+
         const loadAuthData = async () => {
             try {
                 // Try to get from AsyncStorage first
@@ -239,7 +258,7 @@ const DoctorProfileSetupScreen = () => {
         };
 
         loadAuthData();
-    }, [routeUserId, routeToken]);
+    }, [routeUserId, routeToken, (route.params as any)?.selectedLocation]);
 
     // Fetch specialities on mount
     React.useEffect(() => {
@@ -249,6 +268,8 @@ const DoctorProfileSetupScreen = () => {
         };
         loadSpecialities();
     }, []);
+
+
 
     const fetchDoctorProfile = async (userId: string | null, token: string | null) => {
         if (!userId) return;
@@ -421,12 +442,11 @@ const DoctorProfileSetupScreen = () => {
             });
             console.log('=== END DEBUG ===');
 
-            console.log(`Sending ${isNewProfile ? 'new' : 'update'} profile with payload:`, JSON.stringify(payload, null, 2));
-            console.log('Using token:', finalToken ? 'Token present' : 'No token');
-
             // User specified to use PUT and update-profile endpoint
             const url = 'https://appbookingbackend.onrender.com/api/doctor/update-profile';
             const method = 'PUT';
+
+            console.log(`Using ${method} ${url} for ${isNewProfile ? 'NEW' : 'EXISTING'} profile`);
 
             const response = await fetch(url, {
                 method: method,
@@ -791,6 +811,18 @@ const DoctorProfileSetupScreen = () => {
 
     const addLocation = () => {
         if (!tempLocation.name) return Alert.alert('Error', 'Name is required');
+
+        // Validate phone number format: +92 followed by 11 digits (total 14 characters)
+        if (tempLocation.phone) {
+            const phoneRegex = /^\+92\d{11}$/;
+            if (!phoneRegex.test(tempLocation.phone)) {
+                return Alert.alert(
+                    'Invalid Phone Format',
+                    'Phone number must be in format: +92 followed by 11 digits (e.g., +923018153293)'
+                );
+            }
+        }
+
         // If not online, lat/lng required
         if (!tempLocation.isOnline && (!tempLocation.lat || !tempLocation.lng)) {
             return Alert.alert('Error', 'Coordinates required for in-clinic locations');
@@ -845,13 +877,38 @@ const DoctorProfileSetupScreen = () => {
                 </View>
 
                 <TextInput style={styles.input} placeholder="Location Name (e.g. City Hospital or Online)" value={tempLocation.name} onChangeText={t => setTempLocation({ ...tempLocation, name: t })} />
-                <TextInput style={styles.input} placeholder="Phone" keyboardType="phone-pad" value={tempLocation.phone} onChangeText={t => setTempLocation({ ...tempLocation, phone: formatPhoneNumber(t) })} />
+                <TextInput
+                    style={styles.input}
+                    placeholder="Phone (+92 followed by 11 digits, e.g., +923018153293)"
+                    keyboardType="phone-pad"
+                    value={tempLocation.phone}
+                    onChangeText={t => setTempLocation({ ...tempLocation, phone: formatPhoneNumber(t) })}
+                />
 
                 {!tempLocation.isOnline && (
-                    <View style={styles.row}>
-                        <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} placeholder="Latitude" keyboardType="numeric" value={tempLocation.lat} onChangeText={t => setTempLocation({ ...tempLocation, lat: t })} />
-                        <TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="numeric" value={tempLocation.lng} onChangeText={t => setTempLocation({ ...tempLocation, lng: t })} />
-                    </View>
+                    <>
+                        <TouchableOpacity
+                            style={[styles.addButton, { backgroundColor: '#5B7FFF', marginBottom: 12, flexDirection: 'row', gap: 8 }]}
+                            onPress={() => navigation.navigate('SelectLocation', {
+                                onSelect: (loc: any) => {
+                                    setTempLocation(prev => ({
+                                        ...prev,
+                                        lat: String(loc.latitude),
+                                        lng: String(loc.longitude),
+                                        isOnline: false
+                                    }));
+                                }
+                            })}
+                        >
+                            <Icon name="map-outline" size={20} color="#FFF" />
+                            <Text style={styles.addButtonText}>Pick on Map</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, marginRight: 8 }]} placeholder="Latitude" keyboardType="numeric" value={tempLocation.lat} onChangeText={t => setTempLocation({ ...tempLocation, lat: t })} />
+                            <TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="numeric" value={tempLocation.lng} onChangeText={t => setTempLocation({ ...tempLocation, lng: t })} />
+                        </View>
+                    </>
                 )}
 
                 <TouchableOpacity style={styles.addButton} onPress={addLocation}>

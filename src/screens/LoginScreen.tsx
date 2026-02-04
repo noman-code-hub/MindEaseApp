@@ -68,18 +68,27 @@ const LoginScreen = () => {
                     const token = data.data?.accessToken || data.data?.token || data.token || data.accessToken;
                     const userWhatsapp = data.data?.user?.whatsappnumber || data.data?.whatsappnumber || formattedPhone;
 
-                    console.log('Extracted userId:', userId);
-                    console.log('Extracted token:', token);
+                    console.log('[LOGIN] Extracted userId:', userId);
+                    console.log('[LOGIN] Extracted token:', token);
 
                     // 1. Store authentication data in AsyncStorage
                     try {
+                        console.log('[LOGIN] Storing userId:', userId || 'EMPTY');
                         await AsyncStorage.setItem('userId', userId || '');
                         await AsyncStorage.setItem('token', token || '');
                         await AsyncStorage.setItem('role', userRole);
                         await AsyncStorage.setItem('whatsappnumber', userWhatsapp);
-                        console.log('Stored auth data including whatsapp:', userWhatsapp);
+
+                        // Verify storage immediately
+                        const verifyUserId = await AsyncStorage.getItem('userId');
+                        console.log('[LOGIN] ✓ Verified userId stored successfully:', verifyUserId || 'EMPTY');
+                        console.log('[LOGIN] Stored auth data including whatsapp:', userWhatsapp);
+
+                        if (!verifyUserId || verifyUserId.trim() === '') {
+                            console.error('[LOGIN] ❌ ERROR: userId was not stored properly!');
+                        }
                     } catch (storageError) {
-                        console.error('Failed to store auth data:', storageError);
+                        console.error('[LOGIN] Failed to store auth data:', storageError);
                     }
 
                     // 2. Clear old doctorId and robustly check if doctor profile exists
@@ -176,9 +185,15 @@ const LoginScreen = () => {
                     try {
                         const userId = data.data?.userId || data.data?._id || data.userId;
                         const token = data.data?.accessToken || data.data?.token || data.token;
+
+                        console.log('[LOGIN - PATIENT] Storing userId:', userId || 'EMPTY');
                         await AsyncStorage.setItem('userId', userId || '');
                         await AsyncStorage.setItem('token', token || '');
                         await AsyncStorage.setItem('role', userRole || 'patient');
+
+                        // Verify storage
+                        const verifyUserId = await AsyncStorage.getItem('userId');
+                        console.log('[LOGIN - PATIENT] ✓ Verified userId stored:', verifyUserId || 'EMPTY');
                     } catch (storageError) {
                         console.error('Failed to store auth data:', storageError);
                     }

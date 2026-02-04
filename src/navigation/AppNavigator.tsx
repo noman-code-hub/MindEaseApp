@@ -14,6 +14,7 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import DoctorProfileSetupScreen from '../screens/DoctorProfileSetupScreen';
+import SelectLocationScreen from '../screens/SelectLocationScreen';
 import TopBar from '../components/TopBar';
 
 const Stack = createNativeStackNavigator();
@@ -80,6 +81,7 @@ const AppNavigator = () => {
             <Stack.Screen name="OtpVerification" component={require('../screens/OtpVerificationScreen').default} />
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="AllSpecialists" component={AllSpecialistsScreen} />
+            <Stack.Screen name="SelectLocation" component={SelectLocationScreen} />
             <Stack.Screen
                 name="Payment"
                 component={PaymentScreen}

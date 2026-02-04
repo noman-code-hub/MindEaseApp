@@ -377,13 +377,22 @@ const HomeScreen = () => {
         setBookingReason('');
         setAvailabilitySlots({ morning: [], afternoon: [], evening: [] });
 
+        // NEW: Set default locationId for physical
+        let initialLocId = undefined;
+        if (type === 'physical' && doctor.locations && doctor.locations.length > 0) {
+            initialLocId = doctor.locations[0]._id;
+            setSelectedLocationId(initialLocId);
+        } else {
+            setSelectedLocationId(null);
+        }
+
         // Fetch fresh availability
         try {
             const freshAvailability = await getDoctorAvailability(
                 doctor.doctorId,
                 selectedDate || new Date().toISOString().split('T')[0],
                 type,
-                undefined // No location selected yet
+                initialLocId // Pass the determined locationId
             );
             if (freshAvailability) {
                 if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
@@ -509,6 +518,7 @@ const HomeScreen = () => {
     };
 
     const handleScheduleAppointment = async () => {
+        console.log('\n📅 ========== BOOKING APPOINTMENT ==========');
         // Validation
         if (!selectedDoctor) {
             Alert.alert("Missing Info", "Please select a Doctor.");
@@ -525,8 +535,23 @@ const HomeScreen = () => {
 
         setLoading(true);
         try {
+            // Retrieve authentication data
             const token = await AsyncStorage.getItem('token');
             const userId = await AsyncStorage.getItem('userId');
+
+            // Debug: Log all AsyncStorage keys
+            const allKeys = await AsyncStorage.getAllKeys();
+            console.log('[BOOKING] All AsyncStorage keys:', allKeys);
+
+            // Debug: Log retrieved values
+            console.log('[BOOKING] Retrieved token:', token ? `${token.substring(0, 20)}...` : 'null');
+            console.log('[BOOKING] Retrieved userId:', userId || 'EMPTY/NULL');
+
+            // Warning if userId is empty
+            if (!userId || userId.trim() === '') {
+                console.warn('[BOOKING] ⚠️ WARNING: userId is empty! This will cause payment to fail.');
+                console.warn('[BOOKING] User may need to log in again.');
+            }
             const isClinic = (appointmentTypeFilter || 'online') === 'physical';
             const finalAppointmentType = isClinic ? 'inclinic' : 'online';
 
@@ -546,6 +571,10 @@ const HomeScreen = () => {
                 : (selectedDoctor.fees?.online || '500');
             const amount = parseInt(String(amountStr)) || 500;
 
+            console.log('[BOOKING] Doctor fees:', selectedDoctor.fees);
+            console.log('[BOOKING] Calculated amount:', amount);
+            console.log('[BOOKING] Appointment type:', isClinic ? 'In-Clinic' : 'Online');
+
             // Only add locationId if it's a clinic visit
             if (isClinic && selectedLocationId) {
                 bookingPayload.locationId = selectedLocationId;
@@ -553,6 +582,13 @@ const HomeScreen = () => {
 
             // Close modal and navigate to Payment screen
             setModalVisible(false);
+
+            console.log('[BOOKING] Navigating to Payment screen with:');
+            console.log('[BOOKING] - userId:', userId || 'EMPTY');
+            console.log('[BOOKING] - amount:', amount);
+            console.log('[BOOKING] - hasToken:', !!token);
+            console.log('[BOOKING] - doctorId:', selectedDoctor.doctorId);
+            console.log('==========================================\n');
 
             // Pass the payload, token, userId, and amount to Payment screen
             navigation.navigate('Payment' as any, {
@@ -940,20 +976,6 @@ const HomeScreen = () => {
                     )}
                 </ScrollView>
 
-                {/* Doctor Profile Modal */}
-                <DoctorProfileModal
-                    visible={isProfileModalVisible}
-                    onClose={() => setIsProfileModalVisible(false)}
-                    doctor={selectedDoctor}
-                    onBookType={(type) => {
-                        setIsProfileModalVisible(false); // Close profile
-                        if (selectedDoctor) {
-                            handleSpecialistBookPress(selectedDoctor, type);
-                        }
-                    }}
-                    onDetail={handleDetailView}
-                />
-
                 {/* Feedback Section */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Community Feedback</Text>
@@ -993,535 +1015,366 @@ const HomeScreen = () => {
                     ))}
                 </ScrollView>
 
-                {/* Feedback Modal */}
-                <Modal
-                    transparent={true}
-                    visible={feedbackModalVisible}
-                    animationType="fade"
-                    onRequestClose={() => setFeedbackModalVisible(false)}
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.feedbackModalContent}>
-                            <Text style={styles.modalTitle}>Share Your Experience</Text>
-
-                            <Text style={styles.fieldLabel}>Rate your experience</Text>
-                            <View style={styles.ratingSelectContainer}>
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)}>
-                                        <Icon
-                                            name={star <= feedbackRating ? "star" : "star-outline"}
-                                            size={32}
-                                            color="#FFD700"
-                                        />
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            <Text style={styles.fieldLabel}>Your Feedback</Text>
-                            <TextInput
-                                style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
-                                placeholder="Tell us about your experience..."
-                                multiline
-                                value={feedbackText}
-                                onChangeText={setFeedbackText}
-                            />
-
-                            <View style={styles.modalButtons}>
-                                <TouchableOpacity
-                                    style={[styles.modalButton, styles.cancelButton]}
-                                    onPress={() => setFeedbackModalVisible(false)}
-                                >
-                                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.modalButton, styles.confirmButton]}
-                                    onPress={handleSubmitFeedback}
-                                >
-                                    <Text style={styles.confirmButtonText}>Submit</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
-
-                {/* City Selection Modal */}
-                <Modal
-                    transparent={true}
-                    visible={isCityModalVisible}
-                    animationType="slide"
-                    onRequestClose={() => setIsCityModalVisible(false)}
-                >
-                    <View style={styles.cityModalOverlay}>
-                        <View style={styles.cityModalContent}>
-                            {/* Header */}
-                            <View style={styles.cityModalHeader}>
-                                <Text style={styles.cityModalTitle}>Select City</Text>
-                                <TouchableOpacity
-                                    onPress={() => setIsCityModalVisible(false)}
-                                    style={styles.cityModalCloseButton}
-                                >
-                                    <Icon name="close" size={24} color="#1A1F3A" />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Search Bar */}
-                            <View style={styles.citySearchContainer}>
-                                <Icon name="search-outline" size={20} color="#999" />
-                                <TextInput
-                                    style={styles.citySearchInput}
-                                    placeholder="Search cities..."
-                                    placeholderTextColor="#999"
-                                    value={citySearchQuery}
-                                    onChangeText={setCitySearchQuery}
-                                />
-                                {citySearchQuery.length > 0 && (
-                                    <TouchableOpacity onPress={() => setCitySearchQuery('')}>
-                                        <Icon name="close-circle" size={20} color="#999" />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-
-                            {/* Cities Grid */}
-                            <ScrollView
-                                style={styles.citiesScrollView}
-                                showsVerticalScrollIndicator={false}
-                                contentContainerStyle={styles.citiesGridContainer}
-                            >
-                                {/* All Pakistan Option */}
-                                <TouchableOpacity
-                                    style={[
-                                        styles.cityCard,
-                                        selectedLocation === 'All Pakistan' && styles.cityCardSelected
-                                    ]}
-                                    onPress={() => {
-                                        setSelectedLocation('All Pakistan');
-                                        setIsCityModalVisible(false);
-                                        setCitySearchQuery('');
-                                    }}
-                                >
-                                    <Icon
-                                        name="globe"
-                                        size={28}
-                                        color={selectedLocation === 'All Pakistan' ? '#2D5BFF' : '#666'}
-                                    />
-                                    <Text
-                                        style={[
-                                            styles.cityCardText,
-                                            selectedLocation === 'All Pakistan' && styles.cityCardTextSelected
-                                        ]}
-                                    >
-                                        All Pakistan
-                                    </Text>
-                                </TouchableOpacity>
-
-                                {/* Filtered Cities */}
-                                {cities
-                                    .filter(city =>
-                                        city.toLowerCase().includes(citySearchQuery.toLowerCase())
-                                    )
-                                    .map((city, index) => (
-                                        <TouchableOpacity
-                                            key={index}
-                                            style={[
-                                                styles.cityCard,
-                                                selectedLocation === city && styles.cityCardSelected
-                                            ]}
-                                            onPress={() => {
-                                                setSelectedLocation(city);
-                                                setIsCityModalVisible(false);
-                                                setCitySearchQuery('');
-                                            }}
-                                        >
-                                            <Icon
-                                                name="location"
-                                                size={28}
-                                                color={selectedLocation === city ? '#2D5BFF' : '#666'}
-                                            />
-                                            <Text
-                                                style={[
-                                                    styles.cityCardText,
-                                                    selectedLocation === city && styles.cityCardTextSelected
-                                                ]}
-                                            >
-                                                {city}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                            </ScrollView>
-                        </View>
-                    </View>
-                </Modal>
-
-                {/* Advanced Booking Modal */}
-                <Modal
-                    transparent={true}
-                    visible={modalVisible}
-                    animationType="slide"
-                    onRequestClose={() => setModalVisible(false)}
-                >
-                    <View style={styles.modalOverlay}>
-                        <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-                            <Text style={styles.modalTitle}>Schedule Appointment</Text>
-
-                            {/* 1. Calendar Section */}
-                            <Text style={styles.sectionLabel}>Select Date</Text>
-                            <View style={styles.calendarWrapper}>
-                                <Calendar
-                                    onDayPress={(day: { dateString: string }) => {
-                                        setSelectedDate(day.dateString);
-                                    }}
-                                    markedDates={{
-                                        [selectedDate || '']: {
-                                            selected: true,
-                                            disableTouchEvent: true,
-                                            selectedColor: '#5B7FFF',
-                                            selectedTextColor: '#FFFFFF'
-                                        }
-                                    }}
-                                    theme={{
-                                        backgroundColor: '#ffffff',
-                                        calendarBackground: '#ffffff',
-                                        textSectionTitleColor: '#b6c1cd',
-                                        selectedDayBackgroundColor: '#5B7FFF',
-                                        selectedDayTextColor: '#ffffff',
-                                        todayTextColor: '#5B7FFF',
-                                        dayTextColor: '#2d4150',
-                                        textDisabledColor: '#d9e1e8',
-                                        dotColor: '#00adf5',
-                                        selectedDotColor: '#ffffff',
-                                        arrowColor: '#5B7FFF',
-                                        disabledArrowColor: '#d9e1e8',
-                                        monthTextColor: '#1A1F3A',
-                                        indicatorColor: '#5B7FFF',
-                                        textDayFontFamily: 'System',
-                                        textMonthFontFamily: 'System',
-                                        textDayHeaderFontFamily: 'System',
-                                        textDayFontWeight: '600',
-                                        textMonthFontWeight: '700',
-                                        textDayHeaderFontWeight: '600',
-                                        textDayFontSize: 14,
-                                        textMonthFontSize: 16,
-                                        textDayHeaderFontSize: 12
-                                    }}
-                                    minDate={new Date().toISOString().split('T')[0]}
-                                    enableSwipeMonths={true}
-                                />
-                            </View>
-
-                            {/* 2. Doctor Selection (Filtered) */}
-                            <View style={styles.dropdownRow}>
-                                {/* Only show doctor dropdown if not booking a specific specialist */}
-                                {bookingType === 'service' && (
-                                    <View style={styles.dropdownContainer}>
-                                        <Text style={styles.fieldLabel}>Select Doctor</Text>
-                                        <TouchableOpacity
-                                            style={styles.dropdownHeader}
-                                            onPress={() => setIsDoctorDropdownOpen(!isDoctorDropdownOpen)}
-                                        >
-                                            <Text style={selectedDoctor ? styles.dropdownSelectedText : styles.dropdownPlaceholder}>
-                                                {selectedDoctor?.name || (loading ? "Loading doctors..." : "Select Doctor")}
-                                            </Text>
-                                            <Icon name={isDoctorDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color="#666" />
-                                        </TouchableOpacity>
-
-                                        {isDoctorDropdownOpen && (
-                                            <View style={styles.dropdownListContainer}>
-                                                <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-                                                    {filteredDoctors.length > 0 ? (
-                                                        filteredDoctors.map((doc, i) => (
-                                                            <TouchableOpacity
-                                                                key={i}
-                                                                style={[styles.dropdownItem, selectedDoctor?.doctorId === doc.doctorId && styles.dropdownItemSelected]}
-                                                                onPress={() => {
-                                                                    setSelectedDoctor(doc);
-                                                                    setIsDoctorDropdownOpen(false);
-                                                                    // Fetch fresh availability when doctor is selected from dropdown
-                                                                    getDoctorAvailability(
-                                                                        doc.doctorId,
-                                                                        selectedDate || new Date().toISOString().split('T')[0],
-                                                                        appointmentTypeFilter || 'online',
-                                                                        selectedLocationId || undefined
-                                                                    ).then(freshAvailability => {
-                                                                        if (freshAvailability) {
-                                                                            // Handle the object structure (morning/afternoon/evening) or array
-                                                                            if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
-                                                                                setAvailabilitySlots(freshAvailability);
-                                                                            } else if (Array.isArray(freshAvailability) && freshAvailability.length > 0) {
-                                                                                setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
-                                                                            }
-                                                                        }
-                                                                    }).catch(err => console.error('Failed to fetch fresh availability:', err));
-                                                                }}
-                                                            >
-                                                                <Text style={[styles.dropdownText, selectedDoctor?.doctorId === doc.doctorId && styles.dropdownTextSelected]}>
-                                                                    {doc.name} - {doc.role}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        ))
-                                                    ) : (
-                                                        <Text style={styles.dropdownItem}>No doctors available</Text>
-                                                    )}
-                                                </ScrollView>
-                                            </View>
-                                        )}
-                                    </View>
-                                )}
-
-                                {bookingType === 'specialist' && (
-                                    <View style={styles.readOnlyField}>
-                                        <View style={styles.dropdownContainer}>
-                                            <Text style={styles.fieldLabel}>Doctor</Text>
-                                            <Text style={styles.readOnlyText}>{selectedDoctor?.name}</Text>
-                                        </View>
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* 3. Time Slots Section (Dynamic) */}
-                            <Text style={styles.sectionLabel}>Available Slots</Text>
-
-                            {isFetchingSlots ? (
-                                <ActivityIndicator size="small" color="#5B7FFF" style={{ marginVertical: 20 }} />
-                            ) : (
-                                <>
-                                    {/* Morning Slots */}
-                                    {availabilitySlots.morning.filter(slot => {
-                                        if (!appointmentTypeFilter) return true;
-                                        const slotType = (slot.appointmentType || '').toLowerCase();
-                                        const filter = appointmentTypeFilter.toLowerCase();
-                                        if (!slotType) return true; // Show if type is missing
-                                        if (filter === 'physical') {
-                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                        }
-                                        return slotType === filter;
-                                    }).length > 0 && (
-                                            <>
-                                                <Text style={styles.slotCategoryLabel}>Morning</Text>
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
-                                                    {availabilitySlots.morning.filter(slot => {
-                                                        if (!appointmentTypeFilter) return true;
-                                                        const slotType = (slot.appointmentType || '').toLowerCase();
-                                                        const filter = appointmentTypeFilter.toLowerCase();
-                                                        if (!slotType) return true;
-                                                        if (filter === 'physical') {
-                                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                                        }
-                                                        return slotType === filter;
-                                                    }).map((slot, index) => {
-                                                        const isSelected = selectedTime === slot.time;
-                                                        const isBooked = slot.isBooked;
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={`morning-${index}`}
-                                                                style={[
-                                                                    styles.slotChip,
-                                                                    isSelected && styles.slotChipSelected,
-                                                                    isBooked && styles.slotChipDisabled
-                                                                ]}
-                                                                onPress={() => {
-                                                                    if (!isBooked) {
-                                                                        setSelectedTime(slot.time);
-                                                                        setSelectedLocationId(slot.locationId || null);
-                                                                    }
-                                                                }}
-                                                                disabled={isBooked}
-                                                            >
-                                                                <Text style={[
-                                                                    styles.slotText,
-                                                                    isSelected && styles.textSelected,
-                                                                    isBooked && styles.slotTextDisabled
-                                                                ]}>
-                                                                    {slot.time}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </ScrollView>
-                                            </>
-                                        )}
-
-                                    {availabilitySlots.afternoon.filter(slot => {
-                                        if (!appointmentTypeFilter) return true;
-                                        const slotType = (slot.appointmentType || '').toLowerCase();
-                                        const filter = appointmentTypeFilter.toLowerCase();
-                                        if (!slotType) return true;
-                                        if (filter === 'physical') {
-                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                        }
-                                        return slotType === filter;
-                                    }).length > 0 && (
-                                            <>
-                                                <Text style={styles.slotCategoryLabel}>Afternoon</Text>
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
-                                                    {availabilitySlots.afternoon.filter(slot => {
-                                                        if (!appointmentTypeFilter) return true;
-                                                        const slotType = (slot.appointmentType || '').toLowerCase();
-                                                        const filter = appointmentTypeFilter.toLowerCase();
-                                                        if (!slotType) return true;
-                                                        if (filter === 'physical') {
-                                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                                        }
-                                                        return slotType === filter;
-                                                    }).map((slot, index) => {
-                                                        const isSelected = selectedTime === slot.time;
-                                                        const isBooked = slot.isBooked;
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={`afternoon-${index}`}
-                                                                style={[
-                                                                    styles.slotChip,
-                                                                    isSelected && styles.slotChipSelected,
-                                                                    isBooked && styles.slotChipDisabled
-                                                                ]}
-                                                                onPress={() => {
-                                                                    if (!isBooked) {
-                                                                        setSelectedTime(slot.time);
-                                                                        setSelectedLocationId(slot.locationId || null);
-                                                                    }
-                                                                }}
-                                                                disabled={isBooked}
-                                                            >
-                                                                <Text style={[
-                                                                    styles.slotText,
-                                                                    isSelected && styles.textSelected,
-                                                                    isBooked && styles.slotTextDisabled
-                                                                ]}>
-                                                                    {slot.time}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </ScrollView>
-                                            </>
-                                        )}
-
-                                    {availabilitySlots.evening.filter(slot => {
-                                        if (!appointmentTypeFilter) return true;
-                                        const slotType = (slot.appointmentType || '').toLowerCase();
-                                        const filter = appointmentTypeFilter.toLowerCase();
-                                        if (!slotType) return true;
-                                        if (filter === 'physical') {
-                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                        }
-                                        return slotType === filter;
-                                    }).length > 0 && (
-                                            <>
-                                                <Text style={styles.slotCategoryLabel}>Evening</Text>
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
-                                                    {availabilitySlots.evening.filter(slot => {
-                                                        if (!appointmentTypeFilter) return true;
-                                                        const slotType = (slot.appointmentType || '').toLowerCase();
-                                                        const filter = appointmentTypeFilter.toLowerCase();
-                                                        if (!slotType) return true;
-                                                        if (filter === 'physical') {
-                                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
-                                                        }
-                                                        return slotType === filter;
-                                                    }).map((slot, index) => {
-                                                        const isSelected = selectedTime === slot.time;
-                                                        const isBooked = slot.isBooked;
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={`evening-${index}`}
-                                                                style={[
-                                                                    styles.slotChip,
-                                                                    isSelected && styles.slotChipSelected,
-                                                                    isBooked && styles.slotChipDisabled
-                                                                ]}
-                                                                onPress={() => {
-                                                                    if (!isBooked) {
-                                                                        setSelectedTime(slot.time);
-                                                                        setSelectedLocationId(slot.locationId || null);
-                                                                    }
-                                                                }}
-                                                                disabled={isBooked}
-                                                            >
-                                                                <Text style={[
-                                                                    styles.slotText,
-                                                                    isSelected && styles.textSelected,
-                                                                    isBooked && styles.slotTextDisabled
-                                                                ]}>
-                                                                    {slot.time}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </ScrollView>
-                                            </>
-                                        )}
-
-                                    {availabilitySlots.morning.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 &&
-                                        availabilitySlots.afternoon.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 &&
-                                        availabilitySlots.evening.filter(s => !appointmentTypeFilter || !s.appointmentType || (appointmentTypeFilter === 'physical' ? (s.appointmentType === 'in-clinic' || s.appointmentType === 'inclinic' || s.appointmentType === 'physical') : s.appointmentType === appointmentTypeFilter)).length === 0 && (
-                                            <Text style={styles.slotText}>No {appointmentTypeFilter || 'available'} slots for this date. Please select another date or doctor.</Text>
-                                        )}
-                                </>
-                            )}
-
-                            {/* 4. Patient Information */}
-                            <Text style={styles.sectionLabel}>Patient Information</Text>
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.fieldLabel}>Full Name</Text>
-                                <TextInput
-                                    style={styles.modalInput}
-                                    placeholder="Enter patient's full name"
-                                    value={patientName}
-                                    onChangeText={setPatientName}
-                                />
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.fieldLabel}>Phone Number / WhatsApp</Text>
-                                <TextInput
-                                    style={styles.modalInput}
-                                    placeholder="Enter phone number"
-                                    keyboardType="phone-pad"
-                                    value={whatsappNumber}
-                                    onChangeText={setWhatsappNumber}
-                                />
-                            </View>
-
-                            {/* 5. Reason */}
-                            <View style={{ marginTop: 16 }}>
-                                <Text style={styles.fieldLabel}>Reason for Visit</Text>
-                                <TextInput
-                                    style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-                                    placeholder="E.g., anxiety, checkup..."
-                                    multiline
-                                    value={bookingReason}
-                                    onChangeText={setBookingReason}
-                                />
-                            </View>
-
-                            <View style={styles.modalButtons}>
-                                <TouchableOpacity
-                                    style={[styles.modalButton, styles.cancelButton]}
-                                    onPress={() => setModalVisible(false)}
-                                >
-                                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.modalButton, styles.confirmButton]}
-                                    onPress={handleScheduleAppointment}
-                                    disabled={loading}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator color="#FFF" />
-                                    ) : (
-                                        <Text style={styles.confirmButtonText}>Book Appointment</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                            <View style={{ height: 20 }} />
-                        </ScrollView>
-                    </View>
-                </Modal>
-
                 {/* Bottom Padding */}
                 <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Drawer Modal - Simplified */}
+            {/* Advanced Booking Modal */}
+            <Modal
+                transparent={true}
+                visible={modalVisible}
+                animationType="slide"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+                        <Text style={styles.modalTitle}>Schedule {appointmentTypeFilter === 'physical' ? 'In-Clinic' : 'Online'} Appointment</Text>
+
+                        {/* 1. Calendar Section */}
+                        <Text style={styles.sectionLabel}>Select Date</Text>
+                        <View style={styles.calendarWrapper}>
+                            <Calendar
+                                onDayPress={(day: { dateString: string }) => {
+                                    setSelectedDate(day.dateString);
+                                }}
+                                markedDates={{
+                                    [selectedDate || '']: {
+                                        selected: true,
+                                        disableTouchEvent: true,
+                                        selectedColor: '#5B7FFF',
+                                        selectedTextColor: '#FFFFFF'
+                                    }
+                                }}
+                                theme={{
+                                    backgroundColor: '#ffffff',
+                                    calendarBackground: '#ffffff',
+                                    textSectionTitleColor: '#b6c1cd',
+                                    selectedDayBackgroundColor: '#5B7FFF',
+                                    selectedDayTextColor: '#ffffff',
+                                    todayTextColor: '#5B7FFF',
+                                    dayTextColor: '#2d4150',
+                                    textDisabledColor: '#d9e1e8',
+                                    dotColor: '#00adf5',
+                                    selectedDotColor: '#ffffff',
+                                    arrowColor: '#5B7FFF',
+                                    disabledArrowColor: '#d9e1e8',
+                                    monthTextColor: '#1A1F3A',
+                                    indicatorColor: '#5B7FFF',
+                                    textDayFontFamily: 'System',
+                                    textMonthFontFamily: 'System',
+                                    textDayHeaderFontFamily: 'System',
+                                    textDayFontWeight: '600',
+                                    textMonthFontWeight: '700',
+                                    textDayHeaderFontWeight: '600',
+                                    textDayFontSize: 14,
+                                    textMonthFontSize: 16,
+                                    textDayHeaderFontSize: 12
+                                }}
+                                minDate={new Date().toISOString().split('T')[0]}
+                                enableSwipeMonths={true}
+                            />
+                        </View>
+
+                        {/* 2. Doctor Selection (Filtered) */}
+                        <View style={styles.dropdownRow}>
+                            {bookingType === 'service' && (
+                                <View style={styles.dropdownContainer}>
+                                    <Text style={styles.fieldLabel}>Select Doctor</Text>
+                                    <TouchableOpacity
+                                        style={styles.dropdownHeader}
+                                        onPress={() => setIsDoctorDropdownOpen(!isDoctorDropdownOpen)}
+                                    >
+                                        <Text style={selectedDoctor ? styles.dropdownSelectedText : styles.dropdownPlaceholder}>
+                                            {selectedDoctor?.name || (loading ? "Loading doctors..." : "Select Doctor")}
+                                        </Text>
+                                        <Icon name={isDoctorDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color="#666" />
+                                    </TouchableOpacity>
+
+                                    {isDoctorDropdownOpen && (
+                                        <View style={styles.dropdownListContainer}>
+                                            <ScrollView style={styles.dropdownList} nestedScrollEnabled>
+                                                {filteredDoctors.length > 0 ? (
+                                                    filteredDoctors.map((doc, i) => (
+                                                        <TouchableOpacity
+                                                            key={i}
+                                                            style={[styles.dropdownItem, selectedDoctor?.doctorId === doc.doctorId && styles.dropdownItemSelected]}
+                                                            onPress={() => {
+                                                                setSelectedDoctor(doc);
+                                                                setIsDoctorDropdownOpen(false);
+
+                                                                let initialLocId = undefined;
+                                                                if (appointmentTypeFilter === 'physical' && doc.locations && doc.locations.length > 0) {
+                                                                    initialLocId = doc.locations[0]._id;
+                                                                    setSelectedLocationId(initialLocId);
+                                                                } else {
+                                                                    setSelectedLocationId(null);
+                                                                }
+
+                                                                getDoctorAvailability(
+                                                                    doc.doctorId,
+                                                                    selectedDate || new Date().toISOString().split('T')[0],
+                                                                    appointmentTypeFilter || 'online',
+                                                                    initialLocId
+                                                                ).then(freshAvailability => {
+                                                                    if (freshAvailability) {
+                                                                        if (freshAvailability.morning || freshAvailability.afternoon || freshAvailability.evening) {
+                                                                            setAvailabilitySlots(freshAvailability);
+                                                                        } else if (Array.isArray(freshAvailability) && freshAvailability.length > 0) {
+                                                                            setSelectedDoctor(prev => prev ? { ...prev, availability: freshAvailability } : null);
+                                                                        }
+                                                                    }
+                                                                }).catch(err => console.error('Failed to fetch fresh availability:', err));
+                                                            }}
+                                                        >
+                                                            <Text style={[styles.dropdownText, selectedDoctor?.doctorId === doc.doctorId && styles.dropdownTextSelected]}>
+                                                                {doc.name} - {doc.role}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))
+                                                ) : (
+                                                    <Text style={styles.dropdownItem}>No doctors available</Text>
+                                                )}
+                                            </ScrollView>
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+
+                            {bookingType === 'specialist' && (
+                                <View style={styles.readOnlyField}>
+                                    <View style={styles.dropdownContainer}>
+                                        <Text style={styles.fieldLabel}>Doctor</Text>
+                                        <Text style={styles.readOnlyText}>{selectedDoctor?.name}</Text>
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* 3. Time Slots Section */}
+                        <Text style={styles.sectionLabel}>Available Slots</Text>
+                        {isFetchingSlots ? (
+                            <ActivityIndicator size="small" color="#5B7FFF" style={{ marginVertical: 20 }} />
+                        ) : (
+                            <>
+                                {['morning', 'afternoon', 'evening'].map((period) => {
+                                    const slots = (availabilitySlots as any)[period].filter((slot: any) => {
+                                        if (!appointmentTypeFilter) return true;
+                                        const slotType = (slot.appointmentType || '').toLowerCase();
+                                        const filter = appointmentTypeFilter.toLowerCase();
+                                        if (filter === 'physical') {
+                                            return slotType === 'in-clinic' || slotType === 'inclinic' || slotType === 'physical';
+                                        }
+                                        return slotType === filter;
+                                    });
+
+                                    if (slots.length === 0) return null;
+
+                                    return (
+                                        <View key={period}>
+                                            <Text style={styles.slotCategoryLabel}>{period.charAt(0).toUpperCase() + period.slice(1)}</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsGrid}>
+                                                {slots.map((slot: any, index: number) => {
+                                                    const isSelected = selectedTime === slot.time;
+                                                    const isBooked = slot.isBooked;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={`${period}-${index}`}
+                                                            style={[
+                                                                styles.slotChip,
+                                                                isSelected && styles.slotChipSelected,
+                                                                isBooked && styles.slotChipDisabled
+                                                            ]}
+                                                            onPress={() => {
+                                                                if (!isBooked) {
+                                                                    setSelectedTime(slot.time);
+                                                                    if (period === 'morning' || period === 'afternoon' || period === 'evening') {
+                                                                        setSelectedLocationId(slot.locationId || null);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            disabled={isBooked}
+                                                        >
+                                                            <Text style={[
+                                                                styles.slotText,
+                                                                isSelected && styles.textSelected,
+                                                                isBooked && styles.slotTextDisabled
+                                                            ]}>
+                                                                {slot.time}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </View>
+                                    );
+                                })}
+
+                                {availabilitySlots.morning.length === 0 && availabilitySlots.afternoon.length === 0 && availabilitySlots.evening.length === 0 && (
+                                    <View style={styles.noSlotsContainer}>
+                                        <Icon name="calendar-outline" size={40} color="#CCC" />
+                                        <Text style={styles.noSlotsText}>No slots available for this date.</Text>
+                                    </View>
+                                )}
+                            </>
+                        )}
+
+                        {/* 4. Patient Information */}
+                        <View style={{ marginTop: 16 }}>
+                            <Text style={styles.fieldLabel}>Patient Name</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter patient name"
+                                value={patientName}
+                                onChangeText={setPatientName}
+                            />
+                        </View>
+
+                        <View style={{ marginTop: 16 }}>
+                            <Text style={styles.fieldLabel}>WhatsApp Number</Text>
+                            <TextInput
+                                style={styles.modalInput}
+                                placeholder="Enter phone number"
+                                keyboardType="phone-pad"
+                                value={whatsappNumber}
+                                onChangeText={setWhatsappNumber}
+                            />
+                        </View>
+
+                        {/* 5. Reason */}
+                        <View style={{ marginTop: 16 }}>
+                            <Text style={styles.fieldLabel}>Reason for Visit</Text>
+                            <TextInput
+                                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+                                placeholder="E.g., anxiety, checkup..."
+                                multiline
+                                value={bookingReason}
+                                onChangeText={setBookingReason}
+                            />
+                        </View>
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={() => setModalVisible(false)}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.confirmButton]}
+                                onPress={handleScheduleAppointment}
+                                disabled={loading}
+                            >
+                                {loading ? (
+                                    <ActivityIndicator color="#FFF" />
+                                ) : (
+                                    <Text style={styles.confirmButtonText}>Book Appointment</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                        <View style={{ height: 20 }} />
+                    </ScrollView>
+                </View>
+            </Modal>
+
+            {/* Doctor Profile Modal */}
+            <DoctorProfileModal
+                visible={isProfileModalVisible}
+                onClose={() => setIsProfileModalVisible(false)}
+                doctor={selectedDoctor}
+                onBookType={(type) => {
+                    setIsProfileModalVisible(false);
+                    if (selectedDoctor) {
+                        handleSpecialistBookPress(selectedDoctor, type);
+                    }
+                }}
+                onDetail={handleDetailView}
+            />
+
+            {/* Feedback Modal */}
+            <Modal
+                transparent={true}
+                visible={feedbackModalVisible}
+                animationType="fade"
+                onRequestClose={() => setFeedbackModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.feedbackModalContent}>
+                        <Text style={styles.modalTitle}>Share Your Experience</Text>
+                        <View style={styles.ratingSelectContainer}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)}>
+                                    <Icon name={star <= feedbackRating ? "star" : "star-outline"} size={32} color="#FFD700" />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <TextInput
+                            style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
+                            placeholder="Tell us about your experience..."
+                            multiline
+                            value={feedbackText}
+                            onChangeText={setFeedbackText}
+                        />
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setFeedbackModalVisible(false)}>
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.modalButton, styles.confirmButton]} onPress={handleSubmitFeedback}>
+                                <Text style={styles.confirmButtonText}>Submit</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* City Selection Modal */}
+            <Modal
+                transparent={true}
+                visible={isCityModalVisible}
+                animationType="slide"
+                onRequestClose={() => setIsCityModalVisible(false)}
+            >
+                <View style={styles.cityModalOverlay}>
+                    <View style={styles.cityModalContent}>
+                        <View style={styles.cityModalHeader}>
+                            <Text style={styles.cityModalTitle}>Select City</Text>
+                            <TouchableOpacity onPress={() => setIsCityModalVisible(false)}>
+                                <Icon name="close" size={24} color="#1A1F3A" />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.citySearchContainer}>
+                            <Icon name="search-outline" size={20} color="#999" />
+                            <TextInput
+                                style={styles.citySearchInput}
+                                placeholder="Search cities..."
+                                value={citySearchQuery}
+                                onChangeText={setCitySearchQuery}
+                            />
+                        </View>
+                        <ScrollView style={styles.citiesScrollView} showsVerticalScrollIndicator={false}>
+                            <TouchableOpacity
+                                style={[styles.cityCard, selectedLocation === 'All Pakistan' && styles.cityCardSelected]}
+                                onPress={() => { setSelectedLocation('All Pakistan'); setIsCityModalVisible(false); }}
+                            >
+                                <Icon name="globe" size={28} color={selectedLocation === 'All Pakistan' ? '#2D5BFF' : '#666'} />
+                                <Text style={[styles.cityCardText, selectedLocation === 'All Pakistan' && styles.cityCardTextSelected]}>All Pakistan</Text>
+                            </TouchableOpacity>
+                            {cities.filter(city => city.toLowerCase().includes(citySearchQuery.toLowerCase())).map((city, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={[styles.cityCard, selectedLocation === city && styles.cityCardSelected]}
+                                    onPress={() => { setSelectedLocation(city); setIsCityModalVisible(false); }}
+                                >
+                                    <Icon name="location" size={28} color={selectedLocation === city ? '#2D5BFF' : '#666'} />
+                                    <Text style={[styles.cityCardText, selectedLocation === city && styles.cityCardTextSelected]}>{city}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Drawer Modal */}
+
             {drawerVisible && (
                 <Modal
                     transparent={true}
@@ -1530,11 +1383,7 @@ const HomeScreen = () => {
                     onRequestClose={() => setDrawerVisible(false)}
                 >
                     <View style={styles.modalOverlay}>
-                        <TouchableOpacity
-                            style={styles.modalBackdrop}
-                            onPress={() => setDrawerVisible(false)}
-                            activeOpacity={1}
-                        />
+                        <TouchableOpacity style={styles.modalBackdrop} onPress={() => setDrawerVisible(false)} activeOpacity={1} />
                         <View style={styles.drawerContent}>
                             <View style={styles.menuHeader}>
                                 <Text style={styles.menuTitle}>Menu</Text>
@@ -1542,72 +1391,27 @@ const HomeScreen = () => {
                                     <Icon name="close" size={24} color="#1A1F3A" />
                                 </TouchableOpacity>
                             </View>
-
                             <View style={styles.menuItemsContainer}>
-                                <TouchableOpacity
-                                    style={styles.drawerItemTouch}
-                                    onPress={() => {
-                                        setDrawerVisible(false);
-                                        navigation.navigate('Home' as never);
-                                    }}
-                                >
-                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}>
-                                        <Icon name="home" size={22} color="#5B7FFF" />
-                                    </View>
+                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
                                     <Text style={styles.drawerItemText}>Home</Text>
                                 </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.drawerItemTouch}
-                                    onPress={() => {
-                                        setDrawerVisible(false);
-                                        navigation.navigate('Profile' as never);
-                                    }}
-                                >
-                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}>
-                                        <Icon name="person" size={22} color="#5B7FFF" />
-                                    </View>
+                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
                                     <Text style={styles.drawerItemText}>Profile</Text>
                                 </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.drawerItemTouch}
-                                    onPress={() => {
-                                        setDrawerVisible(false);
-                                        navigation.navigate('Appointment' as never);
-                                    }}
-                                >
-                                    <View style={[styles.iconBox, { backgroundColor: '#E0F7F5' }]}>
-                                        <Icon name="calendar" size={22} color="#4ECDC4" />
-                                    </View>
+                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Appointment' as never); }}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#E0F7F5' }]}><Icon name="calendar" size={22} color="#4ECDC4" /></View>
                                     <Text style={styles.drawerItemText}>Appointments</Text>
                                 </TouchableOpacity>
-
                                 {!isLoggedIn ? (
                                     <>
-                                        <TouchableOpacity
-                                            style={styles.drawerItemTouch}
-                                            onPress={() => {
-                                                setDrawerVisible(false);
-                                                navigation.navigate('Signup' as never, { role: 'doctor' } as never);
-                                            }}
-                                        >
-                                            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
-                                                <Icon name="medical" size={22} color="#5B7FFF" />
-                                            </View>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'doctor' } as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}><Icon name="medical" size={22} color="#5B7FFF" /></View>
                                             <Text style={styles.drawerItemText}>Join as Doctor</Text>
                                         </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            style={styles.drawerItemTouch}
-                                            onPress={() => {
-                                                setDrawerVisible(false);
-                                                navigation.navigate('Signup' as never, { role: 'patient' } as never);
-                                            }}
-                                        >
-                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
-                                                <Icon name="person-add" size={22} color="#10B981" />
-                                            </View>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'patient' } as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person-add" size={22} color="#10B981" /></View>
                                             <Text style={styles.drawerItemText}>Join as Patient</Text>
                                         </TouchableOpacity>
                                     </>
@@ -1618,15 +1422,10 @@ const HomeScreen = () => {
                                             await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
                                             setIsLoggedIn(false);
                                             setDrawerVisible(false);
-                                            navigation.reset({
-                                                index: 0,
-                                                routes: [{ name: 'Main' }],
-                                            } as any);
+                                            navigation.reset({ index: 0, routes: [{ name: 'Main' }] } as any);
                                         }}
                                     >
-                                        <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
-                                            <Icon name="log-out" size={22} color="#EF4444" />
-                                        </View>
+                                        <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}><Icon name="log-out" size={22} color="#EF4444" /></View>
                                         <Text style={styles.drawerItemText}>Logout</Text>
                                     </TouchableOpacity>
                                 )}
@@ -1638,6 +1437,7 @@ const HomeScreen = () => {
         </View>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: {

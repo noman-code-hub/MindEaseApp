@@ -77,6 +77,8 @@ const PaymentScreen = () => {
 
     const verifyOtp = async () => {
         if (otp === '1234') {
+            console.log('\n🔐 ========== OTP VERIFICATION STARTED ==========');
+            console.log('[OTP] OTP verified successfully');
             setLoading(true);
             try {
                 const params = route.params as any;
@@ -85,39 +87,93 @@ const PaymentScreen = () => {
                 const userId = params?.userId;
                 const amount = params?.amount;
 
+                console.log('[PAYMENT FLOW] Route Params:', {
+                    hasBookingPayload: !!bookingPayload,
+                    hasToken: !!token,
+                    userId: userId,
+                    amount: amount
+                });
+
                 if (bookingPayload) {
+
+
+                    console.log('\n📋 STEP 1: Creating Appointment...');
+                    console.log('[PAYMENT FLOW] Booking Payload:', JSON.stringify(bookingPayload, null, 2));
+
+
                     // 1. Create the appointment first
                     const bookingResult = await bookAppointment(bookingPayload, token);
                     const appointmentId = bookingResult.data?._id || bookingResult._id || bookingResult.data?.id;
 
+                    console.log('[PAYMENT FLOW] ✓ Appointment Created!');
+                    console.log('[PAYMENT FLOW] Appointment ID:', appointmentId);
+                    console.log('[PAYMENT FLOW] Booking Result:', JSON.stringify(bookingResult, null, 2));
+
                     // 2. Start the payment process on the server
-                    if (appointmentId && userId && amount) {
+                    // Note: userId is optional for guest users
+                    if (appointmentId && amount) {
                         const paymentMethodName = selectedMethod === 'easypaisa' ? 'Easypaisa' :
                             selectedMethod === 'jazzcash' ? 'JazzCash' : 'Visa/Mastercard';
 
-                        await startPayment({
+                        console.log('\n💳 STEP 2: Starting Payment Process...');
+                        console.log('[PAYMENT FLOW] Selected Payment Method:', paymentMethodName);
+                        console.log('[PAYMENT FLOW] User Type:', userId ? 'Authenticated User' : 'Guest User');
+
+                        const paymentStartPayload: any = {
                             appointmentId,
                             paymentMethod: paymentMethodName,
-                            amount: Number(amount),
-                            userId: userId
-                        }, token);
+                            amount: Number(amount)
+                        };
+
+                        // Only include userId if it exists (for authenticated users)
+                        if (userId && userId.trim() !== '') {
+                            paymentStartPayload.userId = userId;
+                        }
+
+                        console.log('[PAYMENT FLOW] Payment Start Payload:', JSON.stringify(paymentStartPayload, null, 2));
+
+                        const startPaymentResult = await startPayment(paymentStartPayload, token);
+                        console.log('[PAYMENT FLOW] ✓ Payment Started!');
+                        console.log('[PAYMENT FLOW] Start Payment Result:', JSON.stringify(startPaymentResult, null, 2));
 
                         // 3. Confirm payment via callback (simulated in-app after OTP)
                         // In a real scenario, this would be triggered by the payment provider
-                        const transactionId = `TXN_${Math.floor(Math.random() * 100000000)}`;
-                        const paymentId = `PAY_${Math.floor(Math.random() * 100000000)}`;
+                        // Extract REAL IDs from the startPayment response
+                        const transactionId = startPaymentResult.transactionId || `TXN_${Math.floor(Math.random() * 100000000)}`;
+                        const paymentId = startPaymentResult.paymentId || `PAY_${Math.floor(Math.random() * 100000000)}`;
 
-                        await confirmPayment({
+                        console.log('\n✅ STEP 3: Confirming Payment...');
+                        console.log('[PAYMENT FLOW] Using Real Transaction ID:', transactionId);
+                        console.log('[PAYMENT FLOW] Using Real Payment ID:', paymentId);
+
+                        const confirmPayload = {
                             appointmentId,
                             paymentId,
                             transactionId,
                             status: 'paid'
-                        }, token);
+                        };
+                        console.log('[PAYMENT FLOW] Confirm Payment Payload:', JSON.stringify(confirmPayload, null, 2));
+
+                        const confirmResult = await confirmPayment(confirmPayload, token);
+                        console.log('[PAYMENT FLOW] ✓ Payment Confirmed!');
+                        console.log('[PAYMENT FLOW] Confirm Payment Result:', JSON.stringify(confirmResult, null, 2));
 
                         // 4. Double check final status for verification
+                        console.log('\n🔍 STEP 4: Verifying Final Payment Status...');
                         const statusResult = await getPaymentStatus(appointmentId, token);
-                        console.log('[PAYMENT VERIFIED] Final Status:', statusResult.status || statusResult.data?.status || 'Active');
+                        const finalStatus = statusResult.status || statusResult.data?.status || 'Active';
+                        console.log('[PAYMENT FLOW] ✓ Final Payment Status Retrieved!');
+                        console.log('[PAYMENT FLOW] Final Status:', finalStatus);
+                        console.log('[PAYMENT FLOW] Status Result:', JSON.stringify(statusResult, null, 2));
+                        console.log('\n🎉 ========== PAYMENT FLOW COMPLETED SUCCESSFULLY ==========\n');
+                    } else {
+                        console.warn('[PAYMENT FLOW] ⚠️ Missing required data for payment:');
+                        console.warn('[PAYMENT FLOW] Appointment ID:', appointmentId);
+                        console.warn('[PAYMENT FLOW] User ID:', userId);
+                        console.warn('[PAYMENT FLOW] Amount:', amount);
                     }
+                } else {
+                    console.warn('[PAYMENT FLOW] ⚠️ No booking payload found in route params');
                 }
 
                 setIsSuccess(true);
@@ -130,7 +186,12 @@ const PaymentScreen = () => {
                     ]);
                 }, 2000);
             } catch (error: any) {
-                console.error("Booking/Payment process failed:", error);
+                console.error('\n❌ ========== PAYMENT FLOW FAILED ==========');
+                console.error('[PAYMENT FLOW] Error occurred during booking/payment process');
+                console.error('[PAYMENT FLOW] Error Message:', error.message);
+                console.error('[PAYMENT FLOW] Error Stack:', error.stack);
+                console.error('[PAYMENT FLOW] Full Error:', JSON.stringify(error, null, 2));
+                console.error('============================================\n');
                 setOtpModalVisible(false);
                 setOtp('');
                 Alert.alert("Process Failed", error.message || "Something went wrong. Please try again.");
@@ -138,6 +199,7 @@ const PaymentScreen = () => {
                 setLoading(false);
             }
         } else {
+            console.log('[OTP] ❌ Invalid OTP entered:', otp);
             setOtpError(true);
         }
     };

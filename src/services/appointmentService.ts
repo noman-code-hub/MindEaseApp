@@ -54,7 +54,7 @@ export const bookAppointment = async (bookingData: BookingData, token: string | 
         throw error;
     }
 };
-export const startPayment = async (paymentData: { appointmentId: string; paymentMethod: string; amount: number; userId: string }, token: string | null = null) => {
+export const startPayment = async (paymentData: { appointmentId: string; paymentMethod: string; amount: number; userId?: string }, token: string | null = null) => {
     const PAYMENT_URL = 'https://appbookingbackend.onrender.com/api/payments/start';
     try {
         const headers: { [key: string]: string } = {
