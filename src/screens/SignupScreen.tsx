@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AppInput from '../components/AppInput';
 
 const SignupScreen = () => {
     const navigation = useNavigation<any>();
@@ -111,33 +112,27 @@ const SignupScreen = () => {
                     </View>
 
                     <View style={styles.form}>
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Phone Number</Text>
-                            <View style={styles.phoneInputWrapper}>
+                        <AppInput
+                            label="Phone Number"
+                            placeholder="300 1234567"
+                            value={phoneNumber}
+                            onChangeText={setPhoneNumber}
+                            keyboardType="phone-pad"
+                            leftElement={
                                 <View style={styles.countryCodeContainer}>
                                     <Text style={styles.countryCodeText}>+92</Text>
                                 </View>
-                                <TextInput
-                                    style={styles.phoneInput}
-                                    placeholder="300 1234567"
-                                    value={phoneNumber}
-                                    onChangeText={setPhoneNumber}
-                                    keyboardType="phone-pad"
-                                />
-                            </View>
-                        </View>
+                            }
+                        />
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Password</Text>
-                            <View style={styles.inputWrapper}>
-                                <Icon name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Create a password"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPassword}
-                                />
+                        <AppInput
+                            label="Password"
+                            placeholder="Create a password"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            icon="lock-closed-outline"
+                            rightElement={
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                     <Icon
                                         name={showPassword ? 'eye-outline' : 'eye-off-outline'}
@@ -145,20 +140,17 @@ const SignupScreen = () => {
                                         color="#666"
                                     />
                                 </TouchableOpacity>
-                            </View>
-                        </View>
+                            }
+                        />
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Confirm Password</Text>
-                            <View style={styles.inputWrapper}>
-                                <Icon name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Confirm your password"
-                                    value={confirmPassword}
-                                    onChangeText={setConfirmPassword}
-                                    secureTextEntry={!showConfirmPassword}
-                                />
+                        <AppInput
+                            label="Confirm Password"
+                            placeholder="Confirm your password"
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showConfirmPassword}
+                            icon="lock-closed-outline"
+                            rightElement={
                                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                                     <Icon
                                         name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
@@ -166,8 +158,8 @@ const SignupScreen = () => {
                                         color="#666"
                                     />
                                 </TouchableOpacity>
-                            </View>
-                        </View>
+                            }
+                        />
 
                         <TouchableOpacity
                             style={[styles.signupButton, loading && styles.signupButtonDisabled]}
@@ -257,32 +249,18 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     countryCodeContainer: {
-        backgroundColor: '#EEF2FF',
+        backgroundColor: '#F1F5F9',
         height: '100%',
-        paddingHorizontal: 15,
+        paddingHorizontal: 16,
         justifyContent: 'center',
         alignItems: 'center',
         borderRightWidth: 1,
         borderRightColor: '#E0E0E0',
     },
     countryCodeText: {
-        fontSize: 16,
-        color: '#333',
-        fontWeight: '500',
-    },
-    inputIcon: {
-        marginRight: 10,
-    },
-    input: {
-        flex: 1,
-        height: '100%',
-        color: '#333',
-    },
-    phoneInput: {
-        flex: 1,
-        height: '100%',
-        color: '#333',
-        paddingHorizontal: 12,
+        fontSize: 15,
+        color: '#1A1F3A',
+        fontWeight: '700',
     },
     signupButton: {
         backgroundColor: '#5B7FFF',

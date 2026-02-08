@@ -1,55 +1,445 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    FlatList,
+    ActivityIndicator,
+    RefreshControl,
+    TouchableOpacity,
+    SafeAreaView,
+    StatusBar,
+    Alert,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width } = Dimensions.get('window');
+interface Appointment {
+    _id: string;
+    patientName: string;
+    patientPhone: string;
+    appointmentDate?: string;
+    date?: string;
+    appointmentTime?: string;
+    time?: string;
+    timeSlot?: string;
+    appointmentType: 'online' | 'in-clinic';
+    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+    createdAt: string;
+}
 
 const AppointmentScreen = () => {
-    const slideAnim = useRef(new Animated.Value(-width)).current;
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchAppointments = async (isRefreshing = false) => {
+        try {
+            if (!isRefreshing) setLoading(true);
+            setError(null);
+
+            const doctorId = await AsyncStorage.getItem('doctorId');
+            const token = await AsyncStorage.getItem('token');
+
+            if (!doctorId) {
+                setError('Doctor ID not found. Please log in again.');
+                return;
+            }
+
+            console.log('[APPOINTMENTS] Fetching for doctorId:', doctorId);
+
+            const response = await fetch(
+                `https://appbookingbackend.onrender.com/api/appointments/doctor/${doctorId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            const text = await response.text();
+            console.log('[APPOINTMENTS] Raw API Response:', text);
+
+            let data;
+            try {
+                data = JSON.parse(text);
+                console.log('[APPOINTMENTS] Parsed API Response:', data);
+            } catch (e) {
+                console.error('[APPOINTMENTS] Failed to parse JSON:', e);
+                setError('Server returned an invalid response. Check logs.');
+                return;
+            }
+
+            if (response.ok) {
+                const appointmentsList = data.data || data.appointments || data || [];
+                setAppointments(Array.isArray(appointmentsList) ? appointmentsList : []);
+            } else {
+                setError(data.message || 'Failed to fetch appointments');
+            }
+        } catch (err) {
+            console.error('[APPOINTMENTS] Error:', err);
+            setError('Network error. Please try again.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
     useEffect(() => {
-        const startAnimation = () => {
-            slideAnim.setValue(-width);
-            Animated.loop(
-                Animated.timing(slideAnim, {
-                    toValue: width,
-                    duration: 4000, // Duration for one pass
-                    useNativeDriver: true,
-                })
-            ).start();
-        };
+        fetchAppointments();
+    }, []);
 
-        startAnimation();
-    }, [slideAnim]);
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchAppointments(true);
+    };
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'confirmed':
+                return '#10B981';
+            case 'pending':
+                return '#F59E0B';
+            case 'completed':
+                return '#6366F1';
+            case 'cancelled':
+                return '#EF4444';
+            default:
+                return '#6B7280';
+        }
+    };
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'confirmed':
+                return 'checkmark-circle';
+            case 'pending':
+                return 'time';
+            case 'completed':
+                return 'checkmark-done-circle';
+            case 'cancelled':
+                return 'close-circle';
+            default:
+                return 'help-circle';
+        }
+    };
+
+    const formatDate = (dateString: string) => {
+        if (!dateString) return 'Date not set';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString; // Fallback if invalid
+        return date.toLocaleDateString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+        });
+    };
+
+    const handleVideoCall = () => {
+        Alert.alert('Video Call', 'Starting video consultation...');
+    };
+
+    const renderAppointment = ({ item }: { item: Appointment }) => (
+        <View style={styles.appointmentCard}>
+            <View style={styles.cardHeader}>
+                <View style={styles.patientInfo}>
+                    <View style={styles.avatarCircle}>
+                        <Icon name="person" size={24} color="#5B7FFF" />
+                    </View>
+                    <View style={styles.patientDetails}>
+                        <Text style={styles.patientName}>{item.patientName}</Text>
+                        <Text style={styles.patientPhone}>{item.patientPhone}</Text>
+                    </View>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
+                    <Icon name={getStatusIcon(item.status)} size={16} color={getStatusColor(item.status)} />
+                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.cardBody}>
+                <View style={styles.infoRow}>
+                    <Icon name="calendar-outline" size={18} color="#6B7280" />
+                    <Text style={styles.infoText}>{formatDate(item.appointmentDate || item.date || '')}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Icon name="time-outline" size={18} color="#6B7280" />
+                    <Text style={styles.infoText}>{item.appointmentTime || item.time || item.timeSlot || 'Time not set'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                    <Icon
+                        name={item.appointmentType === 'online' ? 'videocam-outline' : 'location-outline'}
+                        size={18}
+                        color="#6B7280"
+                    />
+                    <Text style={styles.infoText}>
+                        {item.appointmentType === 'online' ? 'Online Consultation' : 'In-Clinic Visit'}
+                    </Text>
+                </View>
+            </View>
+
+            {item.appointmentType === 'online' && (
+                <View style={styles.cardFooter}>
+                    <TouchableOpacity style={styles.videoCallButton} onPress={handleVideoCall}>
+                        <Icon name="videocam" size={20} color="#FFFFFF" />
+                        <Text style={styles.videoCallText}>Start Video Call</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
+    );
+
+    const renderEmptyState = () => (
+        <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+                <Icon name="calendar-outline" size={64} color="#D1D5DB" />
+            </View>
+            <Text style={styles.emptyTitle}>No Appointments Yet</Text>
+            <Text style={styles.emptySubtitle}>
+                Your appointments will appear here once patients book with you.
+            </Text>
+        </View>
+    );
+
+    const renderError = () => (
+        <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+                <Icon name="alert-circle-outline" size={64} color="#EF4444" />
+            </View>
+            <Text style={styles.emptyTitle}>Error Loading Appointments</Text>
+            <Text style={styles.emptySubtitle}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => fetchAppointments()}>
+                <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
+    if (loading && !refreshing) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#5B7FFF" />
+                <Text style={styles.loadingText}>Loading appointments...</Text>
+            </View>
+        );
+    }
 
     return (
-        <View style={styles.container}>
-            <Animated.Text
-                style={[
-                    styles.text,
-                    { transform: [{ translateX: slideAnim }] }
-                ]}
-            >
-                YET TO BE COMPLETED
-            </Animated.Text>
-        </View>
+        <SafeAreaView style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="#5B7FFF" />
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>My Appointments</Text>
+                <Text style={styles.headerSubtitle}>
+                    {appointments.length} {appointments.length === 1 ? 'appointment' : 'appointments'}
+                </Text>
+            </View>
+
+            {error && !loading ? (
+                renderError()
+            ) : (
+                <FlatList
+                    data={appointments}
+                    renderItem={renderAppointment}
+                    keyExtractor={(item) => item._id}
+                    contentContainerStyle={[
+                        styles.listContainer,
+                        appointments.length === 0 && styles.emptyListContainer,
+                    ]}
+                    ListEmptyComponent={renderEmptyState}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={['#5B7FFF']}
+                            tintColor="#5B7FFF"
+                        />
+                    }
+                />
+            )}
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'center',
-        // alignItems: 'center', // Remove centering to let text slide across full width if needed, or keep it.
-        // Actually, for sliding across screen, we handle position via translate.
-        backgroundColor: '#fff',
-        overflow: 'hidden', // Keep text inside screen bounds
+        backgroundColor: '#F9FAFB',
     },
-    text: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: 'red',
-        position: 'absolute', // Position absolute to move freely
-        alignSelf: 'center', // Center vertically effectively if container is flex:1 justify:center
+    header: {
+        backgroundColor: '#5B7FFF',
+        paddingHorizontal: 20,
+        paddingVertical: 20,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+        elevation: 4,
+        shadowColor: '#5B7FFF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    headerTitle: {
+        fontSize: 28,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        marginBottom: 4,
+    },
+    headerSubtitle: {
+        fontSize: 14,
+        color: '#E0E7FF',
+        fontWeight: '500',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    listContainer: {
+        padding: 16,
+    },
+    emptyListContainer: {
+        flexGrow: 1,
+    },
+    appointmentCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 16,
+    },
+    patientInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    avatarCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#EEF2FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    patientDetails: {
+        flex: 1,
+    },
+    patientName: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 2,
+    },
+    patientPhone: {
+        fontSize: 14,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+        gap: 4,
+    },
+    statusText: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'capitalize',
+    },
+    cardBody: {
+        gap: 10,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    infoText: {
+        fontSize: 14,
+        color: '#4B5563',
+        fontWeight: '500',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 40,
+    },
+    emptyIconCircle: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptySubtitle: {
+        fontSize: 14,
+        color: '#6B7280',
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    retryButton: {
+        marginTop: 20,
+        backgroundColor: '#5B7FFF',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 12,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    cardFooter: {
+        marginTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#F3F4F6',
+        paddingTop: 12,
+    },
+    videoCallButton: {
+        backgroundColor: '#5B7FFF',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderRadius: 12,
+        gap: 8,
+    },
+    videoCallText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 14,
     },
 });
 

@@ -100,6 +100,11 @@ const OtpVerificationScreen = () => {
                 if (userRole) await AsyncStorage.setItem('role', userRole);
                 if (userWhatsapp) await AsyncStorage.setItem('whatsappnumber', userWhatsapp);
 
+                // If doctor, set initial status to IN_PROGRESS
+                if (userRole.toLowerCase() === 'doctor') {
+                    await AsyncStorage.setItem('doctorStatus', 'IN_PROGRESS');
+                }
+
                 // Verify storage
                 const verifyUserId = await AsyncStorage.getItem('userId');
                 console.log('[OTP] ✓ Verified userId stored:', verifyUserId || 'EMPTY');

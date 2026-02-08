@@ -22,6 +22,7 @@ import { searchDoctors, Doctor, getSpecialities, Speciality, getCities, getMajor
 import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppInput from '../components/AppInput';
 
 interface Review {
     id: number;
@@ -144,6 +145,7 @@ const HomeScreen = () => {
     const [isFetchingSlots, setIsFetchingSlots] = useState(false);
     const [bookingReason, setBookingReason] = useState(''); // New field for reason
     const [appointmentTypeFilter, setAppointmentTypeFilter] = useState<'online' | 'physical' | null>(null); // New filter state
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     // Dropdown UI State
     const [isDeptDropdownOpen, setIsDeptDropdownOpen] = useState(false);
@@ -306,9 +308,11 @@ const HomeScreen = () => {
                 console.error("Failed to fetch cities", err);
             }
 
-            // 4. Check Login
+            // 4. Check Login & Role
             const token = await AsyncStorage.getItem('token');
+            const role = await AsyncStorage.getItem('role');
             setIsLoggedIn(!!token);
+            setUserRole(role);
         };
         init();
     }, [drawerVisible]);
@@ -702,34 +706,32 @@ const HomeScreen = () => {
 
                 {/* Search Row */}
                 <View style={styles.searchRow}>
-                    <View style={styles.searchBar}>
-                        <Icon name="search-outline" size={22} color="#999" />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search doctors, specialists..."
-                            placeholderTextColor="#999"
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            returnKeyType="search"
-                            onSubmitEditing={() => {
-                                if (searchQuery.length === 0 || searchQuery.length >= 3) {
-                                    setShowSuggestions(false);
-                                    navigation.navigate('AllSpecialists', { initialQuery: searchQuery } as never);
-                                }
-                            }}
-                            onFocus={() => {
-                                if (searchQuery.length >= 3) {
-                                    setShowSuggestions(true);
-                                }
-                            }}
-                        />
-                        {searchQuery.length > 0 && searchQuery.length < 3 && (
-                            <Text style={styles.searchHelperText}>Min 3 chars</Text>
-                        )}
-                        {isSearching && (
-                            <ActivityIndicator size="small" color="#2D5BFF" />
-                        )}
-                    </View>
+                    <AppInput
+                        containerStyle={styles.searchBar}
+                        inputStyle={styles.searchInput}
+                        placeholder="Search doctors, specialists..."
+                        placeholderTextColor="#999"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        returnKeyType="search"
+                        onSubmitEditing={() => {
+                            if (searchQuery.length === 0 || searchQuery.length >= 3) {
+                                setShowSuggestions(false);
+                                navigation.navigate('AllSpecialists', { initialQuery: searchQuery } as never);
+                            }
+                        }}
+                        onFocus={() => {
+                            if (searchQuery.length >= 3) {
+                                setShowSuggestions(true);
+                            }
+                        }}
+                        icon="search-outline"
+                        rightElement={
+                            isSearching ? (
+                                <ActivityIndicator size="small" color="#2D5BFF" />
+                            ) : undefined
+                        }
+                    />
 
                 </View>
 
@@ -1218,39 +1220,33 @@ const HomeScreen = () => {
                             </>
                         )}
 
-                        {/* 4. Patient Information */}
-                        <View style={{ marginTop: 16 }}>
-                            <Text style={styles.fieldLabel}>Patient Name</Text>
-                            <TextInput
-                                style={styles.modalInput}
-                                placeholder="Enter patient name"
-                                value={patientName}
-                                onChangeText={setPatientName}
-                            />
-                        </View>
+                        <AppInput
+                            label="Patient Name"
+                            placeholder="Enter patient name"
+                            value={patientName}
+                            onChangeText={setPatientName}
+                        />
 
-                        <View style={{ marginTop: 16 }}>
-                            <Text style={styles.fieldLabel}>WhatsApp Number</Text>
-                            <TextInput
-                                style={styles.modalInput}
-                                placeholder="Enter phone number"
-                                keyboardType="phone-pad"
-                                value={whatsappNumber}
-                                onChangeText={setWhatsappNumber}
-                            />
-                        </View>
+                        <AppInput
+                            label="WhatsApp Number"
+                            placeholder="300 1234567"
+                            keyboardType="phone-pad"
+                            value={whatsappNumber}
+                            onChangeText={setWhatsappNumber}
+                            leftElement={
+                                <View style={styles.countryCodeContainer}>
+                                    <Text style={styles.countryCodeText}>+92</Text>
+                                </View>
+                            }
+                        />
 
-                        {/* 5. Reason */}
-                        <View style={{ marginTop: 16 }}>
-                            <Text style={styles.fieldLabel}>Reason for Visit</Text>
-                            <TextInput
-                                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-                                placeholder="E.g., anxiety, checkup..."
-                                multiline
-                                value={bookingReason}
-                                onChangeText={setBookingReason}
-                            />
-                        </View>
+                        <AppInput
+                            label="Reason for Visit"
+                            placeholder="E.g., anxiety, checkup..."
+                            multiline
+                            value={bookingReason}
+                            onChangeText={setBookingReason}
+                        />
 
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
@@ -1307,8 +1303,8 @@ const HomeScreen = () => {
                                 </TouchableOpacity>
                             ))}
                         </View>
-                        <TextInput
-                            style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
+                        <AppInput
+                            label="Your Feedback"
                             placeholder="Tell us about your experience..."
                             multiline
                             value={feedbackText}
@@ -1341,15 +1337,14 @@ const HomeScreen = () => {
                                 <Icon name="close" size={24} color="#1A1F3A" />
                             </TouchableOpacity>
                         </View>
-                        <View style={styles.citySearchContainer}>
-                            <Icon name="search-outline" size={20} color="#999" />
-                            <TextInput
-                                style={styles.citySearchInput}
-                                placeholder="Search cities..."
-                                value={citySearchQuery}
-                                onChangeText={setCitySearchQuery}
-                            />
-                        </View>
+                        <AppInput
+                            containerStyle={styles.citySearchContainer}
+                            inputStyle={styles.citySearchInput}
+                            placeholder="Search cities..."
+                            value={citySearchQuery}
+                            onChangeText={setCitySearchQuery}
+                            icon="search-outline"
+                        />
                         <ScrollView style={styles.citiesScrollView} showsVerticalScrollIndicator={false}>
                             <TouchableOpacity
                                 style={[styles.cityCard, selectedLocation === 'All Pakistan' && styles.cityCardSelected]}
@@ -1379,12 +1374,28 @@ const HomeScreen = () => {
                 <Modal
                     transparent={true}
                     visible={drawerVisible}
-                    animationType="slide"
+                    animationType="fade"
                     onRequestClose={() => setDrawerVisible(false)}
                 >
                     <View style={styles.modalOverlay}>
-                        <TouchableOpacity style={styles.modalBackdrop} onPress={() => setDrawerVisible(false)} activeOpacity={1} />
-                        <View style={styles.drawerContent}>
+                        <Animated.View
+                            style={[
+                                styles.modalBackdrop,
+                                { opacity: bgFadeAnim, backgroundColor: 'rgba(0,0,0,0.5)' }
+                            ]}
+                        >
+                            <TouchableOpacity
+                                style={{ flex: 1 }}
+                                onPress={() => setDrawerVisible(false)}
+                                activeOpacity={1}
+                            />
+                        </Animated.View>
+                        <Animated.View style={[
+                            styles.drawerContent,
+                            {
+                                transform: [{ translateX: slideAnim }]
+                            }
+                        ]}>
                             <View style={styles.menuHeader}>
                                 <Text style={styles.menuTitle}>Menu</Text>
                                 <TouchableOpacity onPress={() => setDrawerVisible(false)}>
@@ -1392,35 +1403,53 @@ const HomeScreen = () => {
                                 </TouchableOpacity>
                             </View>
                             <View style={styles.menuItemsContainer}>
-                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
-                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
-                                    <Text style={styles.drawerItemText}>Home</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
-                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
-                                    <Text style={styles.drawerItemText}>Profile</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Appointment' as never); }}>
-                                    <View style={[styles.iconBox, { backgroundColor: '#E0F7F5' }]}><Icon name="calendar" size={22} color="#4ECDC4" /></View>
-                                    <Text style={styles.drawerItemText}>Appointments</Text>
-                                </TouchableOpacity>
-                                {!isLoggedIn ? (
+                                {userRole?.toLowerCase() === 'doctor' ? (
                                     <>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'doctor' } as never); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}><Icon name="medical" size={22} color="#5B7FFF" /></View>
-                                            <Text style={styles.drawerItemText}>Join as Doctor</Text>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
+                                            <Text style={styles.drawerItemText}>Home</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'patient' } as never); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person-add" size={22} color="#10B981" /></View>
-                                            <Text style={styles.drawerItemText}>Join as Patient</Text>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
+                                            <Text style={styles.drawerItemText}>Profile</Text>
                                         </TouchableOpacity>
                                     </>
                                 ) : (
+                                    <>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
+                                            <Text style={styles.drawerItemText}>Home</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
+                                            <Text style={styles.drawerItemText}>Profile</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Appointment' as never); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#E0F7F5' }]}><Icon name="calendar" size={22} color="#4ECDC4" /></View>
+                                            <Text style={styles.drawerItemText}>Appointments</Text>
+                                        </TouchableOpacity>
+                                        {!isLoggedIn ? (
+                                            <>
+                                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'doctor' } as never); }}>
+                                                    <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}><Icon name="medical" size={22} color="#5B7FFF" /></View>
+                                                    <Text style={styles.drawerItemText}>Join as Doctor</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'patient' } as never); }}>
+                                                    <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person-add" size={22} color="#10B981" /></View>
+                                                    <Text style={styles.drawerItemText}>Join as Patient</Text>
+                                                </TouchableOpacity>
+                                            </>
+                                        ) : null}
+                                    </>
+                                )}
+
+                                {isLoggedIn && (
                                     <TouchableOpacity
                                         style={styles.drawerItemTouch}
                                         onPress={async () => {
                                             await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
                                             setIsLoggedIn(false);
+                                            setUserRole(null);
                                             setDrawerVisible(false);
                                             navigation.reset({ index: 0, routes: [{ name: 'Main' }] } as any);
                                         }}
@@ -1430,7 +1459,7 @@ const HomeScreen = () => {
                                     </TouchableOpacity>
                                 )}
                             </View>
-                        </View>
+                        </Animated.View>
                     </View>
                 </Modal>
             )}
@@ -1455,7 +1484,7 @@ const styles = StyleSheet.create({
     },
     headerContainer: {
         paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingBottom: 12,
         backgroundColor: '#fff',
         zIndex: 100, // For dropdown
         borderBottomWidth: 1,
@@ -1464,7 +1493,7 @@ const styles = StyleSheet.create({
     brandRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 15,
+        marginBottom: 10,
         gap: 12,
     },
     brandTitle: {
@@ -1477,7 +1506,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 15,
+        marginBottom: 10,
     },
     locationLabel: {
         fontSize: 11,
@@ -1823,7 +1852,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     specialitiesContainer: {
-        marginTop: 16,
+        marginTop: 12,
         marginBottom: 0,
     },
     specialitiesContent: {
@@ -1836,7 +1865,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         paddingRight: 16,
         paddingLeft: 6, // Space for icon container
-        paddingVertical: 6,
+        paddingVertical: 5,
         borderRadius: 30,
         marginRight: 10,
         borderWidth: 1,
@@ -1895,8 +1924,8 @@ const styles = StyleSheet.create({
     heroCard: {
         backgroundColor: '#1A1F3A',
         marginHorizontal: 16,
-        marginTop: 20,
-        padding: 24,
+        marginTop: 16,
+        padding: 20,
         borderRadius: 24,
         minHeight: 140,
         // Deep shadow for floating effect
@@ -1913,7 +1942,7 @@ const styles = StyleSheet.create({
         fontSize: 22,
         fontWeight: '800',
         color: '#FFFFFF',
-        marginBottom: 16,
+        marginBottom: 10,
         lineHeight: 30,
         letterSpacing: 0.5,
     },
@@ -1939,14 +1968,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         paddingHorizontal: 16,
-        marginTop: 24,
-        gap: 16,
+        marginTop: 16,
+        gap: 12,
         justifyContent: 'space-between',
     },
     serviceCard: {
         width: '47%', // Slightly smaller to leave room for shadows
         borderRadius: 20,
-        padding: 14,
+        padding: 12,
         minHeight: 130,
         justifyContent: 'space-between',
         marginBottom: 8,
@@ -2000,7 +2029,7 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
         color: '#1A1F3A',
-        marginBottom: 6,
+        marginBottom: 4,
         lineHeight: 18,
     },
     serviceFooter: {
@@ -2038,8 +2067,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        marginTop: 28,
-        marginBottom: 16,
+        marginTop: 20,
+        marginBottom: 12,
     },
     sectionTitle: {
         fontSize: 18,
@@ -2433,6 +2462,20 @@ const styles = StyleSheet.create({
         gap: 10,
         justifyContent: 'center',
         marginBottom: 20,
+    },
+    countryCodeContainer: {
+        backgroundColor: '#F1F5F9',
+        height: '100%',
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRightWidth: 1,
+        borderRightColor: '#E0E0E0',
+    },
+    countryCodeText: {
+        fontSize: 15,
+        color: '#1A1F3A',
+        fontWeight: '700',
     },
 });
 

@@ -130,13 +130,22 @@ const TopBar = () => {
 
             <View style={styles.contentContainer}>
                 <Text style={styles.title}>MindEase</Text>
-                <TouchableOpacity
-                    onPress={() => setModalVisible(true)}
-                    style={styles.menuButton}
-                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                    <Icon name="menu" size={32} color="#FFFFFF" />
-                </TouchableOpacity>
+                <View style={styles.rightSection}>
+                    <TouchableOpacity
+                        style={styles.notificationIconButton}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    >
+                        <Icon name="notifications-outline" size={26} color="#FFFFFF" />
+                        <View style={styles.notificationDot} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setModalVisible(true)}
+                        style={styles.menuButton}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    >
+                        <Icon name="menu" size={32} color="#FFFFFF" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <Modal
@@ -296,6 +305,28 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 15,
+    },
+    rightSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    notificationIconButton: {
+        padding: 5,
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+    },
+    notificationDot: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#EF4444',
+        borderWidth: 2,
+        borderColor: '#5B7FFF',
     },
     menuButton: {
         padding: 5,

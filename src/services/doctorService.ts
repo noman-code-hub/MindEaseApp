@@ -1,3 +1,5 @@
+import { DoctorStatus } from '../types/enums';
+
 export interface Education {
     degree: string;
     institute: string;
@@ -45,6 +47,7 @@ export interface Doctor {
         online: string | number;
         inclinic: string | number;
     };
+    status?: DoctorStatus;
 }
 
 export interface SearchParams {
@@ -97,6 +100,7 @@ const mapDoctorData = (doc: any): Doctor => ({
     location: doc.address?.city,
     locations: doc.locations || [],
     fees: doc.fees || { online: '500', inclinic: '500' },
+    status: doc.status || DoctorStatus.ACTIVE, // Fallback to ACTIVE if not provided
     color: generateColor(doc.name)
 });
 

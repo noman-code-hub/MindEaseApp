@@ -14,6 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppInput from '../components/AppInput';
 import { searchDoctors, getSpecialities, Doctor, Speciality, getDoctorAvailability } from '../services/doctorService';
 import { Calendar } from 'react-native-calendars';
 import { bookAppointment } from '../services/appointmentService';
@@ -268,21 +269,22 @@ const AllSpecialistsScreen = () => {
             </View>
 
             {/* Search Bar */}
-            <View style={styles.searchContainer}>
-                <Icon name="search-outline" size={20} color="#999" />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search doctors, specialists..."
-                    value={query}
-                    onChangeText={setQuery}
-                    placeholderTextColor="#999"
-                />
-                {query.length > 0 && (
-                    <TouchableOpacity onPress={() => setQuery('')}>
-                        <Icon name="close-circle" size={18} color="#999" />
-                    </TouchableOpacity>
-                )}
-            </View>
+            <AppInput
+                containerStyle={styles.searchContainer}
+                inputStyle={styles.searchInput}
+                placeholder="Search doctors, specialists..."
+                value={query}
+                onChangeText={setQuery}
+                placeholderTextColor="#999"
+                icon="search-outline"
+                rightElement={
+                    query.length > 0 ? (
+                        <TouchableOpacity onPress={() => setQuery('')}>
+                            <Icon name="close-circle" size={18} color="#999" />
+                        </TouchableOpacity>
+                    ) : undefined
+                }
+            />
 
             {/* Filters */}
             {specialities.length > 0 && (
@@ -610,38 +612,33 @@ const AllSpecialistsScreen = () => {
                             </>
                         )}
 
-                        {/* Patient Information */}
-                        <Text style={styles.sectionLabel}>Patient Information</Text>
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.fieldLabel}>Full Name</Text>
-                            <TextInput
-                                style={styles.modalInput}
-                                placeholder="Enter patient's full name"
-                                value={patientName}
-                                onChangeText={setPatientName}
-                            />
-                        </View>
+                        <AppInput
+                            label="Full Name"
+                            placeholder="Enter patient's full name"
+                            value={patientName}
+                            onChangeText={setPatientName}
+                        />
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.fieldLabel}>Phone Number / WhatsApp</Text>
-                            <TextInput
-                                style={styles.modalInput}
-                                placeholder="Enter phone number"
-                                keyboardType="phone-pad"
-                                value={whatsappNumber}
-                                onChangeText={setWhatsappNumber}
-                            />
-                        </View>
-                        <View style={{ marginTop: 16 }}>
-                            <Text style={styles.fieldLabel}>Reason</Text>
-                            <TextInput
-                                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
-                                placeholder="Reason..."
-                                multiline
-                                value={bookingReason}
-                                onChangeText={setBookingReason}
-                            />
-                        </View>
+                        <AppInput
+                            label="Phone Number / WhatsApp"
+                            placeholder="300 1234567"
+                            keyboardType="phone-pad"
+                            value={whatsappNumber}
+                            onChangeText={setWhatsappNumber}
+                            leftElement={
+                                <View style={styles.countryCodeContainer}>
+                                    <Text style={styles.countryCodeText}>+92</Text>
+                                </View>
+                            }
+                        />
+
+                        <AppInput
+                            label="Reason"
+                            placeholder="Reason for appointment..."
+                            multiline
+                            value={bookingReason}
+                            onChangeText={setBookingReason}
+                        />
 
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
@@ -906,6 +903,20 @@ const styles = StyleSheet.create({
     },
     readOnlyText: {
         color: '#666',
+    },
+    countryCodeContainer: {
+        backgroundColor: '#F1F5F9',
+        height: '100%',
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRightWidth: 1,
+        borderRightColor: '#E0E0E0',
+    },
+    countryCodeText: {
+        fontSize: 15,
+        color: '#1A1F3A',
+        fontWeight: '700',
     },
 });
 

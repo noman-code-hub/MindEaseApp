@@ -12,6 +12,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import AppInput from '../components/AppInput';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { bookAppointment, startPayment, confirmPayment, getPaymentStatus } from '../services/appointmentService';
 
@@ -233,9 +234,8 @@ const PaymentScreen = () => {
                     <View style={styles.optionContent}>
                         {id === 'card' ? (
                             <View style={styles.formCompact}>
-                                <Text style={styles.label}>Card Number</Text>
-                                <TextInput
-                                    style={styles.input}
+                                <AppInput
+                                    label="Card Number"
                                     placeholder="0000 0000 0000 0000"
                                     keyboardType="numeric"
                                     value={cardNumber}
@@ -243,18 +243,16 @@ const PaymentScreen = () => {
                                 />
                                 <View style={{ flexDirection: 'row', gap: 12 }}>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.label}>Expiry Date</Text>
-                                        <TextInput
-                                            style={styles.input}
+                                        <AppInput
+                                            label="Expiry Date"
                                             placeholder="MM/YY"
                                             value={expiry}
                                             onChangeText={setExpiry}
                                         />
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.label}>CVV</Text>
-                                        <TextInput
-                                            style={styles.input}
+                                        <AppInput
+                                            label="CVV"
                                             placeholder="123"
                                             keyboardType="numeric"
                                             maxLength={3}
@@ -266,18 +264,20 @@ const PaymentScreen = () => {
                             </View>
                         ) : (
                             <View style={styles.formCompact}>
-                                <Text style={styles.label}>Mobile Number</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="03XX XXXXXXX"
+                                <AppInput
+                                    label="Mobile Number"
+                                    placeholder="300 1234567"
                                     keyboardType="phone-pad"
                                     value={mobileNumber}
                                     onChangeText={setMobileNumber}
-                                    maxLength={11}
+                                    leftElement={
+                                        <View style={styles.countryCodeContainer}>
+                                            <Text style={styles.countryCodeText}>+92</Text>
+                                        </View>
+                                    }
                                 />
-                                <Text style={styles.label}>CNIC (Last 4 digits)</Text>
-                                <TextInput
-                                    style={styles.input}
+                                <AppInput
+                                    label="CNIC (Last 4 digits)"
                                     placeholder="1234"
                                     keyboardType="numeric"
                                     value={cnic}
@@ -348,18 +348,17 @@ const PaymentScreen = () => {
                             <>
                                 <Text style={styles.otpTitle}>Confirm Payment</Text>
                                 <Text style={styles.otpSubtitle}>Please enter the 4-digit code sent to your mobile.</Text>
-                                <TextInput
+                                <AppInput
                                     ref={otpInputRef}
-                                    style={[styles.otpInput, otpError && styles.otpInputError]}
+                                    error={otpError ? "Invalid OTP" : undefined}
                                     placeholder="- - - -"
                                     keyboardType="numeric"
                                     maxLength={4}
                                     value={otp}
                                     onChangeText={handleOtpChange}
-                                    textAlign="center"
+                                    inputStyle={{ textAlign: 'center', fontSize: 24, letterSpacing: 8 }}
                                     autoFocus={true}
                                 />
-                                {otpError && <Text style={styles.errorText}>Invalid OTP</Text>}
                             </>
                         )}
                     </View>
@@ -560,7 +559,21 @@ const styles = StyleSheet.create({
         color: '#FF4444',
         fontSize: 12,
         marginTop: 8,
-    }
+    },
+    countryCodeContainer: {
+        backgroundColor: '#F1F5F9',
+        height: '100%',
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRightWidth: 1,
+        borderRightColor: '#E0E0E0',
+    },
+    countryCodeText: {
+        fontSize: 15,
+        color: '#1A1F3A',
+        fontWeight: '700',
+    },
 });
 
 export default PaymentScreen;
