@@ -138,6 +138,12 @@ const ProfileScreen = () => {
                 if (foundId) {
                     await AsyncStorage.setItem('doctorId', foundId);
                 }
+                const storedStatus = await AsyncStorage.getItem('doctorStatus');
+                if (profileData && !profileData.status && storedStatus) {
+                    profileData.status = storedStatus;
+                    console.log('ProfileScreen - Fallback to storedStatus:', storedStatus);
+                }
+
                 setProfile(profileData);
             } else {
                 setError('Profile not found. Please complete your profile setup.');
@@ -217,12 +223,17 @@ const ProfileScreen = () => {
                     <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
                 }
             >
-                <View style={styles.header}>
+                <View style={styles.profileHeader}>
                     <View style={styles.avatarContainer}>
                         <Icon name="person" size={50} color="#FFF" />
                     </View>
-                    <Text style={styles.name}>{profile.name || 'Doctor'}</Text>
-                    <Text style={styles.role}>Doctor</Text>
+                    <View style={styles.nameHeader}>
+                        <Text style={styles.name}>{profile.name || 'Doctor'}</Text>
+                        {(profile.status?.toUpperCase() === 'ACTIVE' || profile.status?.toLowerCase() === 'approved') && (
+                            <Icon name="checkmark-circle" size={20} color="#1DA1F2" style={styles.verifiedTick} />
+                        )}
+                    </View>
+                    <Text style={styles.role}>Doctor Profile</Text>
                     {profile.specialization && (
                         <Text style={styles.specialization}>{profile.specialization}</Text>
                     )}
@@ -406,11 +417,13 @@ const styles = StyleSheet.create({
     retryButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
     logoutButton: { marginTop: 10, paddingHorizontal: 30, paddingVertical: 12 },
     logoutButtonText: { color: '#FF6B6B', fontSize: 16, fontWeight: '600' },
-    header: { backgroundColor: '#5B7FFF', padding: 30, alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-    avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-    name: { fontSize: 22, fontWeight: 'bold', color: '#FFF' },
-    role: { fontSize: 16, color: 'rgba(255,255,255,0.8)' },
-    specialization: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+    profileHeader: { backgroundColor: '#FFFFFF', padding: 30, alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+    avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0F4FF', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+    nameHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    name: { fontSize: 22, fontWeight: 'bold', color: '#1A1F3A' },
+    verifiedTick: { marginTop: 2 },
+    role: { fontSize: 16, color: '#666' },
+    specialization: { fontSize: 14, color: '#999', marginTop: 4 },
     section: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: '#FFF', marginTop: 10 },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#333' },
     infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },

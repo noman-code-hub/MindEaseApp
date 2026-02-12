@@ -14,7 +14,8 @@ import {
     Image, // Added Image
     Dimensions,
     PermissionsAndroid,
-    Platform
+    Platform,
+    Linking
 } from 'react-native';
 import { launchCamera, launchImageLibrary, MediaType } from 'react-native-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSpecialities, Speciality } from '../services/doctorService';
+import { DoctorStatus } from '../types/enums';
 
 
 // --- REFRACTORED COMPONENTS & STYLES ---
@@ -319,6 +321,32 @@ const DoctorProfileSetupScreen = () => {
     const [specialities, setSpecialities] = useState<Speciality[]>([]);
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
+    const handleSupport = () => {
+        Alert.alert(
+            "Technical Support",
+            "Need help with registration? Contact our support team.",
+            [
+                {
+                    text: "Chat on WhatsApp",
+                    onPress: async () => {
+                        const url = 'https://wa.me/923018153293';
+                        try {
+                            const supported = await Linking.canOpenURL(url);
+                            if (supported) {
+                                await Linking.openURL(url);
+                            } else {
+                                Alert.alert("Error", "WhatsApp is not installed or the link is invalid.");
+                            }
+                        } catch (err) {
+                            console.error("An error occurred", err);
+                        }
+                    }
+                },
+                { text: "Close", style: "cancel" }
+            ]
+        );
+    };
+
     const handleNext = () => {
         if (currentStep < STEPS.length - 1) {
             setCurrentStep(currentStep + 1);
@@ -475,6 +503,24 @@ const DoctorProfileSetupScreen = () => {
                     availability: doctorData.availability || [],
                     image: doctorData.image || ''
                 });
+
+                const currentStatus = (doctorData.status || '').toUpperCase();
+                console.log('Fetched Profile Status:', currentStatus);
+
+                // Update local storage
+                await AsyncStorage.setItem('doctorStatus', currentStatus);
+
+                if (currentStatus === DoctorStatus.ACTIVE) {
+                    Alert.alert(
+                        'Profile Approved',
+                        'Your profile is active. Redirecting to dashboard.',
+                        [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }) }]
+                    );
+                    return;
+                } else if (currentStatus === DoctorStatus.PENDING) {
+                    navigation.reset({ index: 0, routes: [{ name: 'PendingVerification' }] });
+                    return;
+                }
 
                 setIsNewProfile(false);
 
@@ -767,8 +813,10 @@ const DoctorProfileSetupScreen = () => {
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                     <Icon name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Edit Profile</Text>
-                <View style={{ width: 24 }} />
+                <Text style={styles.headerTitle}>Application For Registration</Text>
+                <TouchableOpacity onPress={handleSupport} style={{ paddingVertical: 6, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}>
+                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600' }}>Help</Text>
+                </TouchableOpacity>
             </View>
 
             <View style={styles.avatarContainer}>
@@ -1798,12 +1846,12 @@ const styles = StyleSheet.create({
     },
     addButton: {
         backgroundColor: '#0047AB',
-        paddingVertical: 12,
-        paddingHorizontal: 20,
+        paddingVertical: 8,
+        paddingHorizontal: 32,
         borderRadius: 8,
         alignItems: 'center',
-        marginTop: 15,
-        alignSelf: 'stretch',
+        marginTop: 12,
+        alignSelf: 'center',
     },
     addButtonText: {
         color: '#FFF',

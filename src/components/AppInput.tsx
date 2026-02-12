@@ -43,7 +43,9 @@ const AppInput = forwardRef<TextInput, AppInputProps>(({
             ]}>
                 {leftElement}
                 {icon && !leftElement && (
-                    <Icon name={icon} size={20} color="#666" style={styles.icon} />
+                    <View style={styles.iconContainer}>
+                        <Icon name={icon} size={20} color="#5B7FFF" />
+                    </View>
                 )}
                 <TextInput
                     ref={ref}
@@ -78,12 +80,17 @@ const styles = StyleSheet.create({
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
-        borderRadius: 10,
-        backgroundColor: '#FCFCFD',
-        paddingHorizontal: 12,
-        height: 52,
+        borderWidth: 1.5,
+        borderColor: '#F0F0F0',
+        borderRadius: 14,
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        height: 54,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 8,
+        elevation: 1,
     },
     multilineWrapper: {
         height: undefined,
@@ -91,7 +98,13 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         paddingVertical: 8,
     },
-    icon: {
+    iconContainer: {
+        width: 38,
+        height: 38,
+        borderRadius: 10,
+        backgroundColor: '#F0F4FF',
+        justifyContent: 'center',
+        alignItems: 'center',
         marginRight: 10,
     },
     input: {

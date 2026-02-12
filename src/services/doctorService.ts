@@ -135,7 +135,10 @@ export const searchDoctors = async (params: SearchParams = {}): Promise<Doctor[]
 
         return [];
     } catch (error) {
-        console.error('Error searching doctors:', error);
+        console.error('Error searching doctors details:', error);
+        if (error instanceof TypeError && error.message === 'Network request failed') {
+            console.log('[DEBUG] This error usually means the device has no internet connection or the backend is unreachable.');
+        }
         return [];
     }
 };
@@ -289,12 +292,17 @@ export const getMajorCities = (): string[] => {
     return ['Islamabad', 'Peshawar', 'Lahore', 'Karachi', 'Quetta'];
 };
 
-export const getCities = async (): Promise<string[]> => {
+export const getCities = async (retries = 2): Promise<string[]> => {
     try {
         const url = `${BASE_URL}/cities`;
         console.log('Fetching cities from:', url);
 
         const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch cities: ${response.status}`);
+        }
+
         const data = await response.json();
 
         let apiCities: string[] = [];
@@ -310,6 +318,12 @@ export const getCities = async (): Promise<string[]> => {
         return allCities;
     } catch (error) {
         console.error('Error fetching cities:', error);
+
+        if (retries > 0) {
+            console.log(`[DEBUG] Retrying fetch cities... (${retries} retries left)`);
+            return getCities(retries - 1);
+        }
+
         // Return fallback list if API fails
         console.log(`[DEBUG] Using fallback cities list (${PAKISTAN_CITIES.length} cities)`);
         return PAKISTAN_CITIES;
@@ -331,7 +345,7 @@ export const seedSpecialities = async (specialities: Speciality[]): Promise<{ su
     try {
         const url = `${SPECIALITIES_BASE_URL}/seed`;
         console.log('Seeding specialities to:', url);
-        console.log('Payload:', JSON.stringify(specialities, null, 2));
+        // console.log('Payload:', JSON.stringify(specialities, null, 2));
 
         const response = await fetch(url, {
             method: 'POST',
@@ -341,17 +355,33 @@ export const seedSpecialities = async (specialities: Speciality[]): Promise<{ su
             body: JSON.stringify(specialities),
         });
 
-        const data = await response.json();
-        console.log('Seed specialities response:', data);
+        const responseText = await response.text();
+        console.log(`[DEBUG] Seed response status: ${response.status}`);
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            data = { message: responseText };
+        }
 
         if (response.ok) {
             return { success: true, data };
         } else {
-            return { success: false, message: data.message || 'Failed to seed specialities' };
+            return { success: false, message: data.message || `Failed to seed specialities: ${response.status}` };
         }
     } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error seeding specialities:', error);
-        return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
+
+        if (errorMessage.includes('Network request failed')) {
+            return {
+                success: false,
+                message: 'Network request failed. Please ensure the backend is running and reachable from the emulator.'
+            };
+        }
+
+        return { success: false, message: errorMessage };
     }
 };
 

@@ -104,6 +104,7 @@ const DoctorDashboardScreen = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
     const [doctorName, setDoctorName] = useState('Doctor');
+    const [doctorStatus, setDoctorStatus] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [stats, setStats] = useState<DoctorStats>({
@@ -131,8 +132,10 @@ const DoctorDashboardScreen = () => {
             const doctorId = await AsyncStorage.getItem('doctorId');
             const token = await AsyncStorage.getItem('token');
             const storedName = await AsyncStorage.getItem('doctorName') || 'Doctor';
+            const storedStatus = await AsyncStorage.getItem('doctorStatus');
 
             setDoctorName(storedName);
+            setDoctorStatus(storedStatus);
 
             if (!doctorId || !token) {
                 console.log('[DASHBOARD] Missing doctorId or token');
@@ -258,6 +261,32 @@ const DoctorDashboardScreen = () => {
 
     return (
         <View style={styles.container}>
+            {/* Premium Header */}
+            <Animated.View style={[styles.header, { opacity: headerAnim }]}>
+                <View style={styles.headerGradient}>
+                    <View style={styles.headerContent}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.greeting}>{getGreeting()},</Text>
+                            <View style={styles.nameContainer}>
+                                <Text style={styles.doctorName} numberOfLines={1}>{doctorName}</Text>
+                                {doctorStatus === 'ACTIVE' && (
+                                    <Icon name="checkmark-circle" size={24} color="#FFFFFF" style={styles.verifiedTick} />
+                                )}
+                            </View>
+                        </View>
+                        <TouchableOpacity
+                            style={styles.notificationButton}
+                            onPress={() => navigation.navigate('Appointment')}
+                        >
+                            <Icon name="notifications" size={24} color="#FFFFFF" />
+                            <View style={styles.notificationBadge}>
+                                <Text style={styles.notificationBadgeText}>{stats.pendingAppointments}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Animated.View>
+
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
@@ -420,6 +449,14 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '800',
         color: '#FFFFFF',
+    },
+    nameContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    verifiedTick: {
+        marginTop: 4,
     },
     notificationButton: {
         width: 48,

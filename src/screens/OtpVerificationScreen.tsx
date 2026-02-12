@@ -100,9 +100,12 @@ const OtpVerificationScreen = () => {
                 if (userRole) await AsyncStorage.setItem('role', userRole);
                 if (userWhatsapp) await AsyncStorage.setItem('whatsappnumber', userWhatsapp);
 
-                // If doctor, set initial status to IN_PROGRESS
+                // If doctor, store status from response or fallback to IN_PROGRESS
                 if (userRole.toLowerCase() === 'doctor') {
-                    await AsyncStorage.setItem('doctorStatus', 'IN_PROGRESS');
+                    const statusFromData = data.data?.status || data.status || data.doctor?.status;
+                    const doctorStatus = (statusFromData || 'IN_PROGRESS').toUpperCase();
+                    await AsyncStorage.setItem('doctorStatus', doctorStatus);
+                    console.log('[OTP] Stored doctorStatus:', doctorStatus);
                 }
 
                 // Verify storage

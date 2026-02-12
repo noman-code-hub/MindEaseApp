@@ -10,7 +10,6 @@ import HomeScreen from '../screens/HomeScreen';
 import AppointmentScreen from '../screens/AppointmentScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import LoginScreen from '../screens/LoginScreen';
-import SignupScreen from '../screens/SignupScreen';
 import DoctorProfileSetupScreen from '../screens/DoctorProfileSetupScreen';
 import SelectLocationScreen from '../screens/SelectLocationScreen';
 import BillingScreen from '../screens/BillingScreen';
@@ -21,6 +20,8 @@ import PaymentScreen from '../screens/PaymentScreen';
 import OtpVerificationScreen from '../screens/OtpVerificationScreen';
 import AuthLoadingScreen from '../screens/AuthLoadingScreen';
 import DoctorDashboardScreen from '../screens/DoctorDashboardScreen';
+import PharmacyScreen from '../screens/PharmacyScreen';
+import LabsScreen from '../screens/LabsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -73,14 +74,16 @@ const MainTabs = () => {
             <Tab.Screen
                 name="Home"
                 component={role?.toLowerCase() === 'doctor' ? DoctorDashboardScreen : HomeScreen}
-                options={{ headerShown: role?.toLowerCase() === 'doctor' }}
+                options={{ headerShown: true }}
             />
             <Tab.Screen name="Appointment" component={AppointmentScreen} />
-            {role?.toLowerCase() === 'doctor' ? (
-                <Tab.Screen name="Billing" component={BillingScreen} />
-            ) : (
-                <Tab.Screen name="Profile" component={ProfileScreen} />
-            )}
+            {role ? (
+                role.toLowerCase() === 'doctor' ? (
+                    <Tab.Screen name="Billing" component={BillingScreen} />
+                ) : (
+                    <Tab.Screen name="Profile" component={ProfileScreen} />
+                )
+            ) : null}
         </Tab.Navigator>
     );
 };
@@ -96,7 +99,6 @@ const AppNavigator = () => {
             >
                 <Stack.Screen name="AuthLoading" component={AuthLoadingScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen name="DoctorProfileSetup" component={DoctorProfileSetupScreen} />
                 <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
                 <Stack.Screen name="Main" component={MainTabs} />
@@ -109,6 +111,8 @@ const AppNavigator = () => {
                     component={PaymentScreen}
                     options={{ headerShown: false }}
                 />
+                <Stack.Screen name="Pharmacy" component={PharmacyScreen} />
+                <Stack.Screen name="Labs" component={LabsScreen} />
             </Stack.Navigator>
         </View>
     );

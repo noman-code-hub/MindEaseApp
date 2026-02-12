@@ -147,7 +147,7 @@ const AppointmentScreen = () => {
             <View style={styles.cardHeader}>
                 <View style={styles.patientInfo}>
                     <View style={styles.avatarCircle}>
-                        <Icon name="person" size={24} color="#5B7FFF" />
+                        <Icon name="person" size={20} color="#5B7FFF" />
                     </View>
                     <View style={styles.patientDetails}>
                         <Text style={styles.patientName}>{item.patientName}</Text>
@@ -155,7 +155,7 @@ const AppointmentScreen = () => {
                     </View>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
-                    <Icon name={getStatusIcon(item.status)} size={16} color={getStatusColor(item.status)} />
+                    <Icon name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
                         {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                     </Text>
@@ -164,17 +164,17 @@ const AppointmentScreen = () => {
 
             <View style={styles.cardBody}>
                 <View style={styles.infoRow}>
-                    <Icon name="calendar-outline" size={18} color="#6B7280" />
+                    <Icon name="calendar-outline" size={16} color="#6B7280" />
                     <Text style={styles.infoText}>{formatDate(item.appointmentDate || item.date || '')}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                    <Icon name="time-outline" size={18} color="#6B7280" />
+                    <Icon name="time-outline" size={16} color="#6B7280" />
                     <Text style={styles.infoText}>{item.appointmentTime || item.time || item.timeSlot || 'Time not set'}</Text>
                 </View>
                 <View style={styles.infoRow}>
                     <Icon
                         name={item.appointmentType === 'online' ? 'videocam-outline' : 'location-outline'}
-                        size={18}
+                        size={16}
                         color="#6B7280"
                     />
                     <Text style={styles.infoText}>
@@ -186,7 +186,7 @@ const AppointmentScreen = () => {
             {item.appointmentType === 'online' && (
                 <View style={styles.cardFooter}>
                     <TouchableOpacity style={styles.videoCallButton} onPress={handleVideoCall}>
-                        <Icon name="videocam" size={20} color="#FFFFFF" />
+                        <Icon name="videocam" size={18} color="#FFFFFF" />
                         <Text style={styles.videoCallText}>Start Video Call</Text>
                     </TouchableOpacity>
                 </View>
@@ -230,13 +230,7 @@ const AppointmentScreen = () => {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#5B7FFF" />
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>My Appointments</Text>
-                <Text style={styles.headerSubtitle}>
-                    {appointments.length} {appointments.length === 1 ? 'appointment' : 'appointments'}
-                </Text>
-            </View>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
             {error && !loading ? (
                 renderError()
@@ -269,29 +263,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F9FAFB',
     },
-    header: {
-        backgroundColor: '#5B7FFF',
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
-        elevation: 4,
-        shadowColor: '#5B7FFF',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-    },
-    headerTitle: {
-        fontSize: 28,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        marginBottom: 4,
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        color: '#E0E7FF',
-        fontWeight: '500',
-    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -312,20 +283,20 @@ const styles = StyleSheet.create({
     },
     appointmentCard: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 10,
         elevation: 2,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
-        shadowRadius: 8,
+        shadowRadius: 4,
     },
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 16,
+        marginBottom: 8,
     },
     patientInfo: {
         flexDirection: 'row',
@@ -333,51 +304,51 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     avatarCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: '#EEF2FF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: 10,
     },
     patientDetails: {
         flex: 1,
     },
     patientName: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '700',
         color: '#1F2937',
-        marginBottom: 2,
+        marginBottom: 0,
     },
     patientPhone: {
-        fontSize: 14,
+        fontSize: 12,
         color: '#6B7280',
         fontWeight: '500',
     },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
         gap: 4,
     },
     statusText: {
-        fontSize: 12,
+        fontSize: 10,
         fontWeight: '700',
         textTransform: 'capitalize',
     },
     cardBody: {
-        gap: 10,
+        gap: 6,
     },
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
     },
     infoText: {
-        fontSize: 14,
+        fontSize: 12,
         color: '#4B5563',
         fontWeight: '500',
     },
@@ -422,24 +393,24 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     cardFooter: {
-        marginTop: 16,
+        marginTop: 10,
         borderTopWidth: 1,
         borderTopColor: '#F3F4F6',
-        paddingTop: 12,
+        paddingTop: 8,
     },
     videoCallButton: {
         backgroundColor: '#5B7FFF',
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 10,
-        borderRadius: 12,
-        gap: 8,
+        paddingVertical: 8,
+        borderRadius: 10,
+        gap: 6,
     },
     videoCallText: {
         color: '#FFFFFF',
         fontWeight: '700',
-        fontSize: 14,
+        fontSize: 12,
     },
 });
 

@@ -638,21 +638,8 @@ const HomeScreen = () => {
 
     return (
         <View style={{ flex: 1, backgroundColor: '#fff' }}>
-            {/* Fixed Top Bar Area */}
-            <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
-
-                {/* Brand Row - Hamburger & Title */}
-                <View style={styles.brandRow}>
-                    <TouchableOpacity onPress={() => setDrawerVisible(true)}>
-                        <Icon name="menu" size={24} color="#1A1F3A" />
-                    </TouchableOpacity>
-                    <Text style={styles.brandTitle}>MindEase</Text>
-                    <View style={{ flex: 1 }} />
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Icon name="notifications-outline" size={24} color="#1A1F3A" />
-                        <View style={styles.notificationDot} />
-                    </TouchableOpacity>
-                </View>
+            {/* Location & Search Area (Header below TopBar) */}
+            <View style={styles.headerContainer}>
 
                 {/* Location Row */}
                 <View style={styles.locationRow}>
@@ -938,8 +925,11 @@ const HomeScreen = () => {
                                 <TouchableOpacity onPress={() => handleProfilePress(specialist)} style={styles.doctorImageContainer}>
                                     <Icon name="person-circle" size={50} color={specialist.color || '#5B7FFF'} />
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleProfilePress(specialist)}>
+                                <TouchableOpacity onPress={() => handleProfilePress(specialist)} style={styles.nameHeader}>
                                     <Text style={styles.doctorName} numberOfLines={1}>{specialist.name}</Text>
+                                    {(specialist.status?.toUpperCase() === 'ACTIVE' || specialist.status?.toLowerCase() === 'approved') && (
+                                        <Icon name="checkmark-circle" size={16} color="#1DA1F2" />
+                                    )}
                                 </TouchableOpacity>
                                 <View style={styles.ratingContainer}>
                                     <Icon name="star" size={12} color="#FFD700" />
@@ -1403,43 +1393,51 @@ const HomeScreen = () => {
                                 </TouchableOpacity>
                             </View>
                             <View style={styles.menuItemsContainer}>
+                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
+                                    <Text style={styles.drawerItemText}>Home</Text>
+                                </TouchableOpacity>
+
                                 {userRole?.toLowerCase() === 'doctor' ? (
-                                    <>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
-                                            <Text style={styles.drawerItemText}>Home</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
-                                            <Text style={styles.drawerItemText}>Profile</Text>
-                                        </TouchableOpacity>
-                                    </>
+                                    <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
+                                        <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
+                                        <Text style={styles.drawerItemText}>Profile</Text>
+                                    </TouchableOpacity>
                                 ) : (
                                     <>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Home' as never); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="home" size={22} color="#5B7FFF" /></View>
-                                            <Text style={styles.drawerItemText}>Home</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
-                                            <Text style={styles.drawerItemText}>Profile</Text>
-                                        </TouchableOpacity>
                                         <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Appointment' as never); }}>
                                             <View style={[styles.iconBox, { backgroundColor: '#E0F7F5' }]}><Icon name="calendar" size={22} color="#4ECDC4" /></View>
                                             <Text style={styles.drawerItemText}>Appointments</Text>
                                         </TouchableOpacity>
-                                        {!isLoggedIn ? (
-                                            <>
-                                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'doctor' } as never); }}>
-                                                    <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}><Icon name="medical" size={22} color="#5B7FFF" /></View>
-                                                    <Text style={styles.drawerItemText}>Join as Doctor</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Signup' as never, { role: 'patient' } as never); }}>
-                                                    <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person-add" size={22} color="#10B981" /></View>
-                                                    <Text style={styles.drawerItemText}>Join as Patient</Text>
-                                                </TouchableOpacity>
-                                            </>
-                                        ) : null}
+                                        {isLoggedIn && (
+                                            <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Profile' as never); }}>
+                                                <View style={[styles.iconBox, { backgroundColor: '#E8EFFF' }]}><Icon name="person" size={22} color="#5B7FFF" /></View>
+                                                <Text style={styles.drawerItemText}>Profile</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </>
+                                )}
+
+                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Pharmacy' as never); }}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#F0F4FF' }]}><Icon name="medkit" size={22} color="#5B7FFF" /></View>
+                                    <Text style={styles.drawerItemText}>Pharmacy</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Labs' as never); }}>
+                                    <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}><Icon name="flask" size={22} color="#10B981" /></View>
+                                    <Text style={styles.drawerItemText}>Labs</Text>
+                                </TouchableOpacity>
+
+                                {!isLoggedIn && (
+                                    <>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Login' as any, { role: 'doctor', initialMode: 'signup' } as any); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}><Icon name="medical" size={22} color="#5B7FFF" /></View>
+                                            <Text style={styles.drawerItemText}>Join as Doctor</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Login' as any, { role: 'patient', initialMode: 'signup' } as any); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person-add" size={22} color="#10B981" /></View>
+                                            <Text style={styles.drawerItemText}>Join as Patient</Text>
+                                        </TouchableOpacity>
                                     </>
                                 )}
 
@@ -1489,18 +1487,6 @@ const styles = StyleSheet.create({
         zIndex: 100, // For dropdown
         borderBottomWidth: 1,
         borderBottomColor: '#F5F7FA',
-    },
-    brandRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-        gap: 12,
-    },
-    brandTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1A1F3A',
-        letterSpacing: 0.5,
     },
     locationRow: {
         flexDirection: 'row',
@@ -1750,13 +1736,16 @@ const styles = StyleSheet.create({
     },
     searchBar: {
         flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F5F7FA', // Light gray background
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        height: 50,
-        gap: 10,
+        backgroundColor: '#F8F9FE',
+        borderRadius: 16,
+        borderWidth: 1.5,
+        borderColor: '#F0F0F0',
+        height: 54,
+        shadowColor: '#5B7FFF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
     },
     inputContainer: {
         marginTop: 12,
@@ -1973,10 +1962,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     serviceCard: {
-        width: '47%', // Slightly smaller to leave room for shadows
+        width: '47%',
         borderRadius: 20,
-        padding: 12,
-        minHeight: 130,
+        padding: 10,
+        minHeight: 115,
         justifyContent: 'space-between',
         marginBottom: 8,
         // Neumorphism: Soft, diffuse shadow
@@ -2011,13 +2000,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.15,
     },
     serviceIconContainer: {
-        width: 40,
-        height: 40,
+        width: 36,
+        height: 36,
         borderRadius: 12,
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 6,
         // Mini float effect
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
@@ -2026,11 +2015,11 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     serviceTitle: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
         color: '#1A1F3A',
         marginBottom: 4,
-        lineHeight: 18,
+        lineHeight: 16,
     },
     serviceFooter: {
         flexDirection: 'row',
@@ -2116,8 +2105,13 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         color: '#1A1F3A',
-        marginBottom: 6,
-        textAlign: 'center',
+    },
+    nameHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: 4,
+        justifyContent: 'center',
     },
     ratingContainer: {
         flexDirection: 'row',
@@ -2296,6 +2290,21 @@ const styles = StyleSheet.create({
     slotText: {
         fontSize: 12,
         color: '#333',
+    },
+    noSlotsContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 16,
+        marginTop: 10,
+    },
+    noSlotsText: {
+        fontSize: 14,
+        color: '#666',
+        marginTop: 12,
+        fontWeight: '500',
+        textAlign: 'center',
     },
     slotCategoryLabel: {
         fontSize: 13,

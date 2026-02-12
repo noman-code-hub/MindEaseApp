@@ -9,7 +9,8 @@ import {
     ActivityIndicator,
     Image,
     Modal,
-    FlatList
+    FlatList,
+    StatusBar
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -259,32 +260,27 @@ const AllSpecialistsScreen = () => {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Icon name="arrow-back" size={24} color="#1A1F3A" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Find Specialist</Text>
-                <View style={{ width: 24 }} />
-            </View>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
             {/* Search Bar */}
-            <AppInput
-                containerStyle={styles.searchContainer}
-                inputStyle={styles.searchInput}
-                placeholder="Search doctors, specialists..."
-                value={query}
-                onChangeText={setQuery}
-                placeholderTextColor="#999"
-                icon="search-outline"
-                rightElement={
-                    query.length > 0 ? (
-                        <TouchableOpacity onPress={() => setQuery('')}>
-                            <Icon name="close-circle" size={18} color="#999" />
-                        </TouchableOpacity>
-                    ) : undefined
-                }
-            />
+            <View style={styles.searchWrapper}>
+                <AppInput
+                    containerStyle={styles.searchContainer}
+                    inputStyle={styles.searchInput}
+                    placeholder="Search doctors, specialists..."
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholderTextColor="#999"
+                    icon="search-outline"
+                    rightElement={
+                        query.length > 0 ? (
+                            <TouchableOpacity onPress={() => setQuery('')} style={styles.clearButton}>
+                                <Icon name="close-circle" size={20} color="#999" />
+                            </TouchableOpacity>
+                        ) : undefined
+                    }
+                />
+            </View>
 
             {/* Filters */}
             {specialities.length > 0 && (
@@ -348,7 +344,12 @@ const AllSpecialistsScreen = () => {
                                 <Icon name="person-circle" size={60} color={item.color || '#5B7FFF'} />
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleProfilePress(item)} style={styles.cardInfo}>
-                                <Text style={styles.doctorName}>{item.name}</Text>
+                                <View style={styles.nameHeader}>
+                                    <Text style={styles.doctorName}>{item.name}</Text>
+                                    {(item.status?.toUpperCase() === 'ACTIVE' || item.status?.toLowerCase() === 'approved') && (
+                                        <Icon name="checkmark-circle" size={18} color="#1DA1F2" />
+                                    )}
+                                </View>
                                 <Text style={styles.specialityText}>{item.specialization || item.speciality || item.role}</Text>
                                 {item.city && (
                                     <Text style={styles.locationText}>
@@ -672,28 +673,31 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#FFFFFF',
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+    searchWrapper: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
     },
-    backButton: { padding: 4 },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1F3A' },
     searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F5F6F8',
-        marginHorizontal: 16,
-        marginTop: 16,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-        height: 44,
+        marginBottom: 0,
+        backgroundColor: '#F8F9FE',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#E8EAF6',
+        height: 54,
+        shadowColor: '#5B7FFF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
     },
-    searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: '#333' },
+    searchInput: {
+        fontSize: 16,
+        color: '#1A1F3A',
+        fontWeight: '500',
+    },
+    clearButton: {
+        padding: 4,
+    },
     filtersContainer: {
         marginTop: 16,
         paddingLeft: 16,
@@ -738,7 +742,13 @@ const styles = StyleSheet.create({
     },
     doctorImageContainer: { marginRight: 16 },
     cardInfo: { flex: 1 },
-    doctorName: { fontSize: 16, fontWeight: '700', color: '#1A1F3A', marginBottom: 4 },
+    doctorName: { fontSize: 16, fontWeight: '700', color: '#1A1F3A' },
+    nameHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
     specialityText: { fontSize: 14, color: '#5B7FFF', fontWeight: '600', marginBottom: 4 },
     locationText: { fontSize: 12, color: '#999', marginBottom: 6 },
     ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },

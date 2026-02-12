@@ -81,7 +81,12 @@ const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClos
                             <View style={styles.imageContainer}>
                                 <Icon name="person" size={60} color="#5B7FFF" />
                             </View>
-                            <Text style={styles.doctorName}>{doctor.name}</Text>
+                            <View style={styles.nameHeader}>
+                                <Text style={styles.doctorName}>{doctor.name}</Text>
+                                {(doctor.status?.toUpperCase() === 'ACTIVE' || doctor.status?.toLowerCase() === 'approved') && (
+                                    <Icon name="checkmark-circle" size={20} color="#1DA1F2" />
+                                )}
+                            </View>
                             <Text style={styles.doctorSpecialty}>{doctor.specialization || doctor.role}</Text>
                             <Text style={styles.doctorEducation}>{formatEducation(doctor.education)}</Text>
                         </View>
@@ -202,11 +207,16 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#5B7FFF',
     },
+    nameHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
     doctorName: {
         fontSize: 22,
         fontWeight: 'bold',
         color: '#1A1F3A',
-        marginBottom: 4,
     },
     doctorSpecialty: {
         fontSize: 16,
