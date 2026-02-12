@@ -15,11 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AppInput from '../components/AppInput';
+import { DoctorStatus } from '../types/enums';
 
 const LoginScreen = () => {
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const route = useRoute();
-    const { role } = route.params || { role: 'Patient' };
+    const { role } = (route.params as { role?: string }) || { role: 'Patient' };
 
     const [whatsapp, setWhatsapp] = useState('');
 
@@ -156,17 +158,40 @@ const LoginScreen = () => {
                             await AsyncStorage.setItem('doctorId', foundDoctorId);
                             console.log('Stored doctorId in AsyncStorage:', foundDoctorId);
 
-                            navigation.reset({
-                                index: 0,
-                                routes: [{ name: 'Main' }],
-                            });
+                            const doctorStatus = (doctor.status || DoctorStatus.ACTIVE).toUpperCase();
+                            await AsyncStorage.setItem('doctorStatus', doctorStatus);
+                            console.log('Doctor account status:', doctorStatus);
+
+                            if (doctorStatus === DoctorStatus.PENDING) {
+                                console.log('[LOGIN] Redirecting to PendingVerification screen');
+                                navigation.reset({
+                                    index: 0,
+                                    routes: [{ name: 'PendingVerification' as any }],
+                                });
+                            } else if (doctorStatus === DoctorStatus.IN_PROGRESS) {
+                                Alert.alert('Profile Incomplete', 'Please complete your profile to continue.');
+                                navigation.reset({
+                                    index: 0,
+                                    routes: [{
+                                        name: 'DoctorProfileSetup' as any,
+                                        params: { userId: userId, token: token } as any
+                                    }],
+                                });
+                            } else {
+                                // ACTIVE status
+                                console.log('[LOGIN] Doctor is ACTIVE, navigating to Main');
+                                navigation.reset({
+                                    index: 0,
+                                    routes: [{ name: 'Main' as any }],
+                                });
+                            }
                         } else {
                             console.log('No valid doctor profile found, navigating to setup');
                             navigation.reset({
                                 index: 0,
                                 routes: [{
-                                    name: 'DoctorProfileSetup',
-                                    params: { userId: userId, token: token }
+                                    name: 'DoctorProfileSetup' as any,
+                                    params: { userId: userId, token: token } as any
                                 }],
                             });
                         }
@@ -175,8 +200,8 @@ const LoginScreen = () => {
                         navigation.reset({
                             index: 0,
                             routes: [{
-                                name: 'DoctorProfileSetup',
-                                params: { userId: userId, token: token }
+                                name: 'DoctorProfileSetup' as any,
+                                params: { userId: userId, token: token } as any
                             }],
                         });
                     }
@@ -200,7 +225,7 @@ const LoginScreen = () => {
 
                     navigation.reset({
                         index: 0,
-                        routes: [{ name: 'Main' }],
+                        routes: [{ name: 'Main' as any }],
                     });
                 }
             } else {
@@ -237,38 +262,34 @@ const LoginScreen = () => {
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <View style={{ marginTop: 20 }} />
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>WhatsApp Number</Text>
-                            <View style={styles.phoneInputWrapper}>
-                                <View style={styles.flagContainer}>
-                                    <Text style={styles.flag}>🇵🇰</Text>
-                                    <Text style={styles.countryCode}>+92</Text>
-                                    <Icon name="chevron-down" size={12} color="#666" style={{ marginLeft: 4 }} />
+                        <AppInput
+                            label="WhatsApp Number"
+                            placeholder="300 1234567"
+                            value={whatsapp}
+                            onChangeText={setWhatsapp}
+                            keyboardType="phone-pad"
+                            leftElement={
+                                <View style={styles.countryCodeContainer}>
+                                    <Text style={styles.countryCodeText}>+92</Text>
                                 </View>
-                                <TextInput
-                                    style={styles.phoneInput}
-                                    placeholder="300 1234567"
-                                    value={whatsapp}
-                                    onChangeText={setWhatsapp}
-                                    keyboardType="phone-pad"
-                                />
-                            </View>
-                        </View>
+                            }
+                        />
 
 
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Password</Text>
-                            <View style={styles.inputWrapper}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPassword}
-                                />
-                            </View>
-                        </View>
+                        <AppInput
+                            label="Password"
+                            placeholder="Enter your password"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            icon="lock-closed-outline"
+                            rightElement={
+                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                    <Icon name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#666" />
+                                </TouchableOpacity>
+                            }
+                        />
 
                         <View style={styles.optionsRow}>
                             <TouchableOpacity
@@ -300,7 +321,7 @@ const LoginScreen = () => {
 
                         <View style={styles.footer}>
                             <Text style={styles.footerText}>Don't have an account? </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Signup', { role })}>
+                            <TouchableOpacity onPress={() => navigation.navigate('Signup' as any, { role: (route.params as any)?.role || role } as any)}>
                                 <Text style={styles.signupText}>Sign Up</Text>
                             </TouchableOpacity>
                         </View>
@@ -434,22 +455,19 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF',
         alignItems: 'center',
     },
-    flagContainer: {
-        flexDirection: 'row',
+    countryCodeContainer: {
+        backgroundColor: '#F1F5F9',
+        height: '100%',
+        paddingHorizontal: 16,
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 12,
         borderRightWidth: 1,
         borderRightColor: '#E0E0E0',
-        height: '100%',
     },
-    flag: {
-        fontSize: 18,
-        marginRight: 6,
-    },
-    countryCode: {
+    countryCodeText: {
         fontSize: 15,
-        color: '#333',
-        fontWeight: '500',
+        color: '#1A1F3A',
+        fontWeight: '700',
     },
     phoneInput: {
         flex: 1,
