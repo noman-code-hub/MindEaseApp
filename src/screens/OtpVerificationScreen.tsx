@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DoctorStatus } from '../types/enums';
 
 const OtpVerificationScreen = () => {
     const navigation = useNavigation<any>();
@@ -117,13 +118,32 @@ const OtpVerificationScreen = () => {
                 }
 
                 if (userRole.toLowerCase() === 'doctor') {
-                    navigation.reset({
-                        index: 0,
-                        routes: [{
-                            name: 'DoctorProfileSetup',
-                            params: { userId: responseUserId, token: token } // Pass token just in case
-                        }],
-                    });
+                    // Normalize status
+                    const rawStatus = (data.data?.status || data.status || data.doctor?.status || '').toUpperCase();
+                    let doctorStatus = DoctorStatus.IN_PROGRESS;
+
+                    if (rawStatus === 'ACTIVE' || rawStatus === 'APPROVED') {
+                        doctorStatus = DoctorStatus.ACTIVE;
+                    } else if (rawStatus === 'PENDING') {
+                        doctorStatus = DoctorStatus.PENDING;
+                    }
+
+                    await AsyncStorage.setItem('doctorStatus', doctorStatus);
+                    console.log('[OTP] Correctly routed doctor with status:', doctorStatus);
+
+                    if (doctorStatus === DoctorStatus.PENDING) {
+                        navigation.reset({ index: 0, routes: [{ name: 'PendingVerification' }] });
+                    } else if (doctorStatus === DoctorStatus.ACTIVE) {
+                        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+                    } else {
+                        navigation.reset({
+                            index: 0,
+                            routes: [{
+                                name: 'DoctorProfileSetup',
+                                params: { userId: responseUserId, token: token }
+                            }],
+                        });
+                    }
                 } else {
                     navigation.reset({
                         index: 0,

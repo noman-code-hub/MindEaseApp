@@ -32,14 +32,24 @@ const AuthLoadingScreen = () => {
                 }
 
                 if (role?.toLowerCase() === 'doctor') {
-                    // Check Doctor Status
-                    console.log('User is a Doctor. Redirecting based on status:', doctorStatus);
-                    if (doctorStatus === 'PENDING') {
+                    // Check Doctor Status with normalization
+                    const rawStatus = (doctorStatus || '').toUpperCase();
+                    let normalizedStatus = 'IN_PROGRESS';
+
+                    if (rawStatus === 'ACTIVE' || rawStatus === 'APPROVED') {
+                        normalizedStatus = 'ACTIVE';
+                    } else if (rawStatus === 'PENDING') {
+                        normalizedStatus = 'PENDING';
+                    }
+
+                    console.log('User is a Doctor. Normalized status:', normalizedStatus);
+
+                    if (normalizedStatus === 'PENDING') {
                         navigation.reset({
                             index: 0,
                             routes: [{ name: 'PendingVerification' }],
                         });
-                    } else if (doctorStatus === 'IN_PROGRESS') {
+                    } else if (normalizedStatus === 'IN_PROGRESS') {
                         navigation.reset({
                             index: 0,
                             routes: [{
@@ -48,7 +58,7 @@ const AuthLoadingScreen = () => {
                             }],
                         });
                     } else {
-                        // Default to Main (Active)
+                        // Default to Main (ACTIVE)
                         navigation.reset({
                             index: 0,
                             routes: [{ name: 'Main' }],

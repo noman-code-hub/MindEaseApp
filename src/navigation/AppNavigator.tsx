@@ -22,6 +22,7 @@ import AuthLoadingScreen from '../screens/AuthLoadingScreen';
 import DoctorDashboardScreen from '../screens/DoctorDashboardScreen';
 import PharmacyScreen from '../screens/PharmacyScreen';
 import LabsScreen from '../screens/LabsScreen';
+import RecordsScreen from '../screens/RecordsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -52,6 +53,8 @@ const MainTabs = () => {
                         iconName = focused ? 'person' : 'person-outline';
                     } else if (route.name === 'Billing') {
                         iconName = focused ? 'receipt' : 'receipt-outline';
+                    } else if (route.name === 'Records') {
+                        iconName = focused ? 'file-tray-full' : 'file-tray-full-outline';
                     }
                     return <Icon name={iconName as string} size={size} color={color} />;
                 },
@@ -81,7 +84,7 @@ const MainTabs = () => {
                 role.toLowerCase() === 'doctor' ? (
                     <Tab.Screen name="Billing" component={BillingScreen} />
                 ) : (
-                    <Tab.Screen name="Profile" component={ProfileScreen} />
+                    <Tab.Screen name="Records" component={RecordsScreen} />
                 )
             ) : null}
         </Tab.Navigator>

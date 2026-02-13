@@ -143,17 +143,30 @@ const LoginScreen = () => {
                     if (doctor && (doctor._id || doctor.id)) {
                         const foundDoctorId = doctor._id || doctor.id || doctor.doctorId;
                         await AsyncStorage.setItem('doctorId', foundDoctorId);
-                        const doctorStatus = (doctor.status || DoctorStatus.ACTIVE).toUpperCase();
+
+                        // Normalize status: Treat 'APPROVED' or 'ACTIVE' as ACTIVE
+                        const rawStatus = (doctor.status || '').toUpperCase();
+                        let doctorStatus = DoctorStatus.IN_PROGRESS;
+
+                        if (rawStatus === 'ACTIVE' || rawStatus === 'APPROVED') {
+                            doctorStatus = DoctorStatus.ACTIVE;
+                        } else if (rawStatus === 'PENDING') {
+                            doctorStatus = DoctorStatus.PENDING;
+                        }
+
                         await AsyncStorage.setItem('doctorStatus', doctorStatus);
+                        console.log('Normalized Doctor Status:', doctorStatus);
 
                         if (doctorStatus === DoctorStatus.PENDING) {
                             navigation.reset({ index: 0, routes: [{ name: 'PendingVerification' as any }] });
-                        } else if (doctorStatus === DoctorStatus.IN_PROGRESS) {
-                            navigation.reset({ index: 0, routes: [{ name: 'DoctorProfileSetup' as any, params: { userId, token } as any }] });
-                        } else {
+                        } else if (doctorStatus === DoctorStatus.ACTIVE) {
                             navigation.reset({ index: 0, routes: [{ name: 'Main' as any }] });
+                        } else {
+                            // IN_PROGRESS or anything else
+                            navigation.reset({ index: 0, routes: [{ name: 'DoctorProfileSetup' as any, params: { userId, token } as any }] });
                         }
                     } else {
+                        // No doctor profile found at all
                         navigation.reset({ index: 0, routes: [{ name: 'DoctorProfileSetup' as any, params: { userId, token } as any }] });
                     }
                 } else {

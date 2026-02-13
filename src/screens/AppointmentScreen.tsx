@@ -18,6 +18,13 @@ interface Appointment {
     _id: string;
     patientName: string;
     patientPhone: string;
+    doctorName?: string; // For patients (legacy)
+    doctorPhone?: string; // For patients
+    doctorId?: {
+        _id: string;
+        name: string;
+        role?: string;
+    }; // Modern nested object
     appointmentDate?: string;
     date?: string;
     appointmentTime?: string;
@@ -33,31 +40,43 @@ const AppointmentScreen = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     const fetchAppointments = async (isRefreshing = false) => {
         try {
             if (!isRefreshing) setLoading(true);
             setError(null);
 
-            const doctorId = await AsyncStorage.getItem('doctorId');
             const token = await AsyncStorage.getItem('token');
+            const role = await AsyncStorage.getItem('role');
+            const doctorId = await AsyncStorage.getItem('doctorId');
 
-            if (!doctorId) {
-                setError('Doctor ID not found. Please log in again.');
+            setUserRole(role);
+
+            if (!token) {
+                setError('Login token not found. Please log in again.');
                 return;
             }
 
-            console.log('[APPOINTMENTS] Fetching for doctorId:', doctorId);
-
-            const response = await fetch(
-                `https://appbookingbackend.onrender.com/api/appointments/doctor/${doctorId}`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+            let url = '';
+            if (role?.toLowerCase() === 'doctor') {
+                if (!doctorId) {
+                    setError('Doctor ID not found. Please log in again.');
+                    return;
                 }
-            );
+                url = `https://appbookingbackend.onrender.com/api/appointments/doctor/${doctorId}`;
+                console.log('[APPOINTMENTS] Fetching for doctorId:', doctorId);
+            } else {
+                url = 'https://appbookingbackend.onrender.com/api/appointments/my';
+                console.log('[APPOINTMENTS] Fetching for patient');
+            }
+
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
             const text = await response.text();
             console.log('[APPOINTMENTS] Raw API Response:', text);
@@ -142,57 +161,65 @@ const AppointmentScreen = () => {
         Alert.alert('Video Call', 'Starting video consultation...');
     };
 
-    const renderAppointment = ({ item }: { item: Appointment }) => (
-        <View style={styles.appointmentCard}>
-            <View style={styles.cardHeader}>
-                <View style={styles.patientInfo}>
-                    <View style={styles.avatarCircle}>
-                        <Icon name="person" size={20} color="#5B7FFF" />
-                    </View>
-                    <View style={styles.patientDetails}>
-                        <Text style={styles.patientName}>{item.patientName}</Text>
-                        <Text style={styles.patientPhone}>{item.patientPhone}</Text>
-                    </View>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
-                    <Icon name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
-                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                    </Text>
-                </View>
-            </View>
+    const renderAppointment = ({ item }: { item: Appointment }) => {
+        const isDoctor = userRole?.toLowerCase() === 'doctor';
 
-            <View style={styles.cardBody}>
-                <View style={styles.infoRow}>
-                    <Icon name="calendar-outline" size={16} color="#6B7280" />
-                    <Text style={styles.infoText}>{formatDate(item.appointmentDate || item.date || '')}</Text>
+        return (
+            <View style={styles.appointmentCard}>
+                <View style={styles.cardHeader}>
+                    <View style={styles.patientInfo}>
+                        <View style={styles.avatarCircle}>
+                            <Icon name={isDoctor ? 'person' : 'medical'} size={20} color="#5B7FFF" />
+                        </View>
+                        <View style={styles.patientDetails}>
+                            <Text style={styles.patientName}>
+                                {isDoctor ? item.patientName : (item.doctorId?.name || item.doctorName || 'Doctor')}
+                            </Text>
+                            <Text style={styles.patientPhone}>
+                                {isDoctor ? item.patientPhone : (item.doctorPhone || 'Professional Help')}
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
+                        <Icon name={getStatusIcon(item.status)} size={14} color={getStatusColor(item.status)} />
+                        <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                        </Text>
+                    </View>
                 </View>
-                <View style={styles.infoRow}>
-                    <Icon name="time-outline" size={16} color="#6B7280" />
-                    <Text style={styles.infoText}>{item.appointmentTime || item.time || item.timeSlot || 'Time not set'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                    <Icon
-                        name={item.appointmentType === 'online' ? 'videocam-outline' : 'location-outline'}
-                        size={16}
-                        color="#6B7280"
-                    />
-                    <Text style={styles.infoText}>
-                        {item.appointmentType === 'online' ? 'Online Consultation' : 'In-Clinic Visit'}
-                    </Text>
-                </View>
-            </View>
 
-            {item.appointmentType === 'online' && (
-                <View style={styles.cardFooter}>
-                    <TouchableOpacity style={styles.videoCallButton} onPress={handleVideoCall}>
-                        <Icon name="videocam" size={18} color="#FFFFFF" />
-                        <Text style={styles.videoCallText}>Start Video Call</Text>
-                    </TouchableOpacity>
+                <View style={styles.cardBody}>
+                    <View style={styles.infoRow}>
+                        <Icon name="calendar-outline" size={16} color="#6B7280" />
+                        <Text style={styles.infoText}>{formatDate(item.appointmentDate || item.date || '')}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                        <Icon name="time-outline" size={16} color="#6B7280" />
+                        <Text style={styles.infoText}>{item.appointmentTime || item.time || item.timeSlot || 'Time not set'}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                        <Icon
+                            name={item.appointmentType === 'online' ? 'videocam-outline' : 'location-outline'}
+                            size={16}
+                            color="#6B7280"
+                        />
+                        <Text style={styles.infoText}>
+                            {item.appointmentType === 'online' ? 'Online Consultation' : 'In-Clinic Visit'}
+                        </Text>
+                    </View>
                 </View>
-            )}
-        </View>
-    );
+
+                {item.appointmentType === 'online' && (
+                    <View style={styles.cardFooter}>
+                        <TouchableOpacity style={styles.videoCallButton} onPress={handleVideoCall}>
+                            <Icon name="videocam" size={18} color="#FFFFFF" />
+                            <Text style={styles.videoCallText}>Start Video Call</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </View>
+        );
+    };
 
     const renderEmptyState = () => (
         <View style={styles.emptyContainer}>
@@ -201,7 +228,9 @@ const AppointmentScreen = () => {
             </View>
             <Text style={styles.emptyTitle}>No Appointments Yet</Text>
             <Text style={styles.emptySubtitle}>
-                Your appointments will appear here once patients book with you.
+                {userRole?.toLowerCase() === 'doctor'
+                    ? 'Your appointments will appear here once patients book with you.'
+                    : 'You have not booked any appointments yet. Head to Home to find a specialist.'}
             </Text>
         </View>
     );

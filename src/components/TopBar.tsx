@@ -10,18 +10,62 @@ const { width } = Dimensions.get('window');
 const TopBar = () => {
     const [modalVisible, setModalVisible] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [userProfile, setUserProfile] = useState<{ name: string, role: string, avatar?: string } | null>(null);
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
 
     useEffect(() => {
         const checkAuth = async () => {
             const token = await AsyncStorage.getItem('token');
+            const role = await AsyncStorage.getItem('role');
             setIsLoggedIn(!!token);
+            if (token) {
+                fetchUserProfile(token, role);
+            } else {
+                setUserProfile(null);
+            }
         };
-        if (modalVisible) {
-            checkAuth();
-        }
+        checkAuth();
     }, [modalVisible]);
+
+    const fetchUserProfile = async (token: string, role: string | null) => {
+        try {
+            const userId = await AsyncStorage.getItem('userId');
+            const doctorId = await AsyncStorage.getItem('doctorId');
+
+            let name = 'User';
+            let displayRole = role || 'Patient';
+
+            if (role?.toLowerCase() === 'doctor') {
+                displayRole = 'Doctor';
+                const idToUse = doctorId || userId;
+                if (idToUse) {
+                    const response = await fetch(`https://appbookingbackend.onrender.com/api/doctor/profile/${userId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        const doctor = data.data || data.doctor || (Array.isArray(data) ? data[0] : data);
+                        name = doctor?.name || name;
+                    }
+                }
+            } else {
+                displayRole = 'Patient';
+                const response = await fetch(`https://appbookingbackend.onrender.com/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const user = data.data || data.user || data;
+                    name = user?.name || name;
+                }
+            }
+
+            setUserProfile({ name, role: displayRole });
+        } catch (error) {
+            console.error('Error fetching user profile for TopBar:', error);
+        }
+    };
 
     // Animation values
     const bgFadeAnim = useRef(new Animated.Value(0)).current;
@@ -152,6 +196,25 @@ const TopBar = () => {
                 </View>
 
                 <View style={styles.rightSection}>
+                    {isLoggedIn && userProfile && (
+                        <View style={styles.profileInfoContainer}>
+                            <View style={styles.profileTextContainer}>
+                                <Text style={styles.profileName} numberOfLines={1}>{userProfile.name}</Text>
+                                <Text style={styles.profileRole}>{userProfile.role}</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.avatarMiniButton}
+                                onPress={() => handleNavigation('Profile')}
+                            >
+                                <View style={styles.avatarMini}>
+                                    <Text style={styles.avatarMiniText}>
+                                        {userProfile.name.charAt(0).toUpperCase()}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     <TouchableOpacity
                         style={styles.notificationIconButton}
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
@@ -278,6 +341,30 @@ const TopBar = () => {
                                 <>
                                     <AnimatedTouchableOpacity
                                         style={[styles.fullScreenMenuItem, { opacity: item3Op, transform: [{ translateY: item3Anim }] }]}
+                                        onPress={() => handleNavigation('Pharmacy')}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.iconBox, { backgroundColor: '#F0F4FF' }]}>
+                                            <Icon name="medkit" size={24} color="#5B7FFF" />
+                                        </View>
+                                        <Text style={styles.fullScreenMenuText}>Pharmacy</Text>
+                                        <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
+                                    </AnimatedTouchableOpacity>
+
+                                    <AnimatedTouchableOpacity
+                                        style={[styles.fullScreenMenuItem, { opacity: item4Op, transform: [{ translateY: item4Anim }] }]}
+                                        onPress={() => handleNavigation('Labs')}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.iconBox, { backgroundColor: '#ECFDF5' }]}>
+                                            <Icon name="flask" size={24} color="#10B981" />
+                                        </View>
+                                        <Text style={styles.fullScreenMenuText}>Labs</Text>
+                                        <Icon name="chevron-forward" size={20} color="#CCC" style={{ marginLeft: 'auto' }} />
+                                    </AnimatedTouchableOpacity>
+
+                                    <AnimatedTouchableOpacity
+                                        style={[styles.fullScreenMenuItem, { opacity: item5Op, transform: [{ translateY: item5Anim }] }]}
                                         onPress={() => handleNavigation('Profile')}
                                         activeOpacity={0.7}
                                     >
@@ -289,7 +376,7 @@ const TopBar = () => {
                                     </AnimatedTouchableOpacity>
 
                                     <AnimatedTouchableOpacity
-                                        style={[styles.fullScreenMenuItem, { opacity: item4Op, transform: [{ translateY: item4Anim }] }]}
+                                        style={[styles.fullScreenMenuItem, { opacity: item6Op, transform: [{ translateY: item6Anim }] }]}
                                         onPress={handleLogout}
                                         activeOpacity={0.7}
                                     >
@@ -348,6 +435,51 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
+        marginLeft: 4,
+    },
+    profileInfoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    profileTextContainer: {
+        alignItems: 'flex-end',
+        marginRight: 8,
+        justifyContent: 'center',
+    },
+    profileName: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1A1F3A',
+        maxWidth: 100,
+    },
+    profileRole: {
+        fontSize: 10,
+        color: '#5B7FFF',
+        fontWeight: '600',
+        marginTop: -2,
+    },
+    avatarMiniButton: {
+        shadowColor: '#5B7FFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    avatarMini: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#5B7FFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFF',
+    },
+    avatarMiniText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     notificationDot: {
         position: 'absolute',

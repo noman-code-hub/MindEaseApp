@@ -504,20 +504,27 @@ const DoctorProfileSetupScreen = () => {
                     image: doctorData.image || ''
                 });
 
-                const currentStatus = (doctorData.status || '').toUpperCase();
-                console.log('Fetched Profile Status:', currentStatus);
+                const rawStatus = (doctorData.status || '').toUpperCase();
+                console.log('Fetched Profile Status:', rawStatus);
+
+                // Normalize status
+                let doctorStatus = DoctorStatus.IN_PROGRESS;
+                if (rawStatus === 'ACTIVE' || rawStatus === 'APPROVED') {
+                    doctorStatus = DoctorStatus.ACTIVE;
+                } else if (rawStatus === 'PENDING') {
+                    doctorStatus = DoctorStatus.PENDING;
+                }
 
                 // Update local storage
-                await AsyncStorage.setItem('doctorStatus', currentStatus);
+                await AsyncStorage.setItem('doctorStatus', doctorStatus);
+                console.log('Normalized Status for Storage:', doctorStatus);
 
-                if (currentStatus === DoctorStatus.ACTIVE) {
-                    Alert.alert(
-                        'Profile Approved',
-                        'Your profile is active. Redirecting to dashboard.',
-                        [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Main' }] }) }]
-                    );
+                if (doctorStatus === DoctorStatus.ACTIVE) {
+                    console.log('Doctor is ACTIVE/APPROVED. Redirecting to Main.');
+                    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
                     return;
-                } else if (currentStatus === DoctorStatus.PENDING) {
+                } else if (doctorStatus === DoctorStatus.PENDING) {
+                    console.log('Doctor is PENDING. Redirecting to PendingVerification.');
                     navigation.reset({ index: 0, routes: [{ name: 'PendingVerification' }] });
                     return;
                 }
