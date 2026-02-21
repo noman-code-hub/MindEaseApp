@@ -8,7 +8,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar, StyleSheet, ToastAndroid } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import AppNavigator from './src/navigation/AppNavigator';
+import AppNavigator from './frontend/src/navigation/AppNavigator';
 
 function App() {
   useEffect(() => {
