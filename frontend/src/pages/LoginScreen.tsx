@@ -17,10 +17,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppInput from '../components/AppInput';
 import { DoctorStatus } from '../types/enums';
+import { useAuthState } from '../navigation/authState';
 
 const LoginScreen = () => {
     const navigation = useNavigation<any>();
     const route = useRoute();
+    const { signIn } = useAuthState();
     const { role } = (route.params as { role?: string }) || { role: undefined };
     const safeRole = role || 'Patient';
 
@@ -160,7 +162,7 @@ const LoginScreen = () => {
                         if (doctorStatus === DoctorStatus.PENDING) {
                             navigation.reset({ index: 0, routes: [{ name: 'PendingVerification' as any }] });
                         } else if (doctorStatus === DoctorStatus.ACTIVE) {
-                            navigation.reset({ index: 0, routes: [{ name: 'Main' as any }] });
+                            signIn();
                         } else {
                             // IN_PROGRESS or anything else
                             navigation.reset({ index: 0, routes: [{ name: 'DoctorProfileSetup' as any, params: { userId, token } as any }] });
@@ -176,7 +178,7 @@ const LoginScreen = () => {
                     await AsyncStorage.setItem('userId', userId || '');
                     await AsyncStorage.setItem('token', token || '');
                     await AsyncStorage.setItem('role', userRole || 'patient');
-                    navigation.reset({ index: 0, routes: [{ name: 'Main' as any }] });
+                    signIn();
                 }
             } else {
                 Alert.alert('Login Failed', data.message || 'Invalid credentials');

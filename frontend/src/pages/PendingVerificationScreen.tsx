@@ -10,13 +10,13 @@ import {
     Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthState } from '../navigation/authState';
 
 const { width } = Dimensions.get('window');
 
 const PendingVerificationScreen = ({ onRefresh }: { onRefresh?: () => void }) => {
-    const navigation = useNavigation<any>();
+    const { signIn, signOut } = useAuthState();
     const [isRefreshing, setIsRefreshing] = React.useState(false);
 
     React.useEffect(() => {
@@ -52,14 +52,11 @@ const PendingVerificationScreen = ({ onRefresh }: { onRefresh?: () => void }) =>
                     await AsyncStorage.setItem('doctorStatus', latestStatus);
 
                     if (latestStatus === 'ACTIVE') {
-                        console.log('[REFRESH] Doctor approved! Navigating to Main');
+                        console.log('[REFRESH] Doctor approved! Switching to authenticated flow');
                         Alert.alert('Approved!', 'Your profile has been approved. Welcome to MindEase!', [
                             {
                                 text: 'Continue',
-                                onPress: () => navigation.reset({
-                                    index: 0,
-                                    routes: [{ name: 'Main' }]
-                                })
+                                onPress: () => signIn(),
                             }
                         ]);
                     } else {
@@ -78,11 +75,7 @@ const PendingVerificationScreen = ({ onRefresh }: { onRefresh?: () => void }) =>
     };
 
     const handleLogout = async () => {
-        await AsyncStorage.clear();
-        navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-        });
+        await signOut();
     };
 
     return (

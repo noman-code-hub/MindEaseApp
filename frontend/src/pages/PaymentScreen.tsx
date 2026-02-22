@@ -182,7 +182,7 @@ const PaymentScreen = () => {
                     setOtpModalVisible(false);
                     setIsSuccess(false);
                     setOtp('');
-                    navigation.navigate('Main' as any);
+                    navigation.navigate('Home' as any);
                 }, 2000);
             } catch (error: any) {
                 console.error('\n❌ ========== PAYMENT FLOW FAILED ==========');

@@ -24,6 +24,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSpecialities, Speciality } from '../services/doctorService';
 import { DoctorStatus } from '../types/enums';
+import { useAuthState } from '../navigation/authState';
 
 
 // --- REFRACTORED COMPONENTS & STYLES ---
@@ -251,6 +252,7 @@ const STEPS = ['Personal Info', 'Education', 'Practice Details', 'Availability']
 
 const DoctorProfileSetupScreen = () => {
     const navigation = useNavigation<any>();
+    const { signIn } = useAuthState();
     const [currentStep, setCurrentStep] = useState(0);
     const [genderModalVisible, setGenderModalVisible] = useState(false);
 
@@ -521,7 +523,7 @@ const DoctorProfileSetupScreen = () => {
 
                 if (doctorStatus === DoctorStatus.ACTIVE) {
                     console.log('Doctor is ACTIVE/APPROVED. Redirecting to Main.');
-                    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+                    signIn();
                     return;
                 } else if (doctorStatus === DoctorStatus.PENDING) {
                     console.log('Doctor is PENDING. Redirecting to PendingVerification.');
@@ -690,10 +692,7 @@ const DoctorProfileSetupScreen = () => {
                         Alert.alert('Success', 'Profile saved successfully!', [
                             {
                                 text: 'OK',
-                                onPress: () => navigation.reset({
-                                    index: 0,
-                                    routes: [{ name: 'Main' }],
-                                })
+                                onPress: () => signIn(),
                             }
                         ]);
                     } else {

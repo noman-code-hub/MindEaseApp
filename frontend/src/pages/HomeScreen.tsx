@@ -23,6 +23,7 @@ import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppInput from '../components/AppInput';
+import { useAuthState } from '../navigation/authState';
 
 interface Review {
     id: number;
@@ -123,6 +124,7 @@ const AnimatedCard = ({ children, index, style, onPress }: any) => {
 
 const HomeScreen = () => {
     const insets = useSafeAreaInsets();
+    const { signOut } = useAuthState();
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [patientId, setPatientId] = useState<string | null>(null); // To store logged in patient ID
     const [modalVisible, setModalVisible] = useState(false);
@@ -234,13 +236,10 @@ const HomeScreen = () => {
     };
 
     const handleLogout = async () => {
-        await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
         setIsLoggedIn(false);
+        setUserRole(null);
         closeDrawer(() => {
-            navigation.reset({
-                index: 0,
-                routes: [{ name: 'Main' }],
-            } as any);
+            void signOut();
         });
     };
 
@@ -654,6 +653,18 @@ const HomeScreen = () => {
                             <Icon name="chevron-down" size={14} color="#333" />
                         </TouchableOpacity>
                     </View>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity style={styles.iconButton}>
+                            <Icon name="notifications-outline" size={22} color="#1A1F3A" />
+                            <View style={styles.notificationDot} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={() => setDrawerVisible(true)}
+                        >
+                            <Icon name="menu" size={22} color="#1A1F3A" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Location Dropdown Selection */}
@@ -833,6 +844,14 @@ const HomeScreen = () => {
                     <TouchableOpacity style={styles.heroButton}>
                         <Text style={styles.heroButtonText}>New Plans Available</Text>
                     </TouchableOpacity>
+                    {!isLoggedIn && (
+                        <TouchableOpacity
+                            style={[styles.heroButton, styles.loginHeroButton]}
+                            onPress={() => navigation.navigate('Login' as any)}
+                        >
+                            <Text style={styles.heroButtonText}>Login</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Service Cards */}
@@ -1430,13 +1449,13 @@ const HomeScreen = () => {
 
                                 {!isLoggedIn && (
                                     <>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Login' as any, { role: 'doctor', initialMode: 'signup' } as any); }}>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Login' as any, { role: 'doctor', initialMode: 'login' } as any); }}>
                                             <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}><Icon name="medical" size={22} color="#5B7FFF" /></View>
-                                            <Text style={styles.drawerItemText}>Join as Doctor</Text>
+                                            <Text style={styles.drawerItemText}>Doctor Login</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Login' as any, { role: 'patient', initialMode: 'signup' } as any); }}>
-                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person-add" size={22} color="#10B981" /></View>
-                                            <Text style={styles.drawerItemText}>Join as Patient</Text>
+                                        <TouchableOpacity style={styles.drawerItemTouch} onPress={() => { setDrawerVisible(false); navigation.navigate('Login' as any, { role: 'patient', initialMode: 'login' } as any); }}>
+                                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Icon name="person" size={22} color="#10B981" /></View>
+                                            <Text style={styles.drawerItemText}>Patient Login</Text>
                                         </TouchableOpacity>
                                     </>
                                 )}
@@ -1444,13 +1463,7 @@ const HomeScreen = () => {
                                 {isLoggedIn && (
                                     <TouchableOpacity
                                         style={styles.drawerItemTouch}
-                                        onPress={async () => {
-                                            await AsyncStorage.multiRemove(['token', 'userId', 'role', 'doctorId', 'whatsappnumber']);
-                                            setIsLoggedIn(false);
-                                            setUserRole(null);
-                                            setDrawerVisible(false);
-                                            navigation.reset({ index: 0, routes: [{ name: 'Main' }] } as any);
-                                        }}
+                                        onPress={handleLogout}
                                     >
                                         <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}><Icon name="log-out" size={22} color="#EF4444" /></View>
                                         <Text style={styles.drawerItemText}>Logout</Text>
@@ -1493,6 +1506,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 10,
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     locationLabel: {
         fontSize: 11,
@@ -1946,6 +1964,10 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 8,
         elevation: 4,
+    },
+    loginHeroButton: {
+        marginTop: 10,
+        backgroundColor: '#3274A6',
     },
     heroButtonText: {
         color: '#FFFFFF',

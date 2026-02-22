@@ -15,10 +15,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DoctorStatus } from '../types/enums';
+import { useAuthState } from '../navigation/authState';
 
 const OtpVerificationScreen = () => {
     const navigation = useNavigation<any>();
     const route = useRoute();
+    const { signIn } = useAuthState();
     const { userId, phoneNumber, receivedOtp, role } = (route.params as { userId: string, phoneNumber: string, receivedOtp?: string, role?: string }) || {};
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
@@ -134,7 +136,7 @@ const OtpVerificationScreen = () => {
                     if (doctorStatus === DoctorStatus.PENDING) {
                         navigation.reset({ index: 0, routes: [{ name: 'PendingVerification' }] });
                     } else if (doctorStatus === DoctorStatus.ACTIVE) {
-                        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+                        signIn();
                     } else {
                         navigation.reset({
                             index: 0,
@@ -145,10 +147,7 @@ const OtpVerificationScreen = () => {
                         });
                     }
                 } else {
-                    navigation.reset({
-                        index: 0,
-                        routes: [{ name: 'Main' }],
-                    });
+                    signIn();
                 }
             } else {
                 Alert.alert('Verification Failed', data.message || 'Invalid OTP');

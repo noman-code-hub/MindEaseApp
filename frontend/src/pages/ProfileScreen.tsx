@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthState } from '../navigation/authState';
 
 // --- SHARED COMPONENTS (Matched with Doctor Setup UI) ---
 
@@ -285,6 +286,7 @@ const AddRecordModal = ({ visible, type, onClose, onSave }: any) => {
 
 const ProfileScreen = () => {
     const navigation = useNavigation<any>();
+    const { signOut } = useAuthState();
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState<string | null>(null);
     const [profile, setProfile] = useState<any>(null);
@@ -403,8 +405,7 @@ const ProfileScreen = () => {
             { text: 'Cancel', style: 'cancel' },
             {
                 text: 'Logout', style: 'destructive', onPress: async () => {
-                    await AsyncStorage.clear();
-                    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+                    await signOut();
                 }
             }
         ]);
