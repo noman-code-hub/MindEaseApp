@@ -53,7 +53,11 @@ const MainStack = () => {
       <Stack.Screen name="Labs" component={LabsScreen} />
       <Stack.Screen name="DoctorProfileSetup" component={DoctorProfileSetupScreen} />
       <Stack.Screen name="PendingVerification" component={PendingVerificationScreen} />
-      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
     </Stack.Navigator>
   );
