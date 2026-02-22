@@ -23,30 +23,41 @@ const Drawer = createDrawerNavigator<DrawerParamList>();
 const DrawerItem = ({
   label,
   icon,
+  iconColor,
+  iconBackground,
   onPress,
 }: {
   label: string;
   icon: string;
+  iconColor: string;
+  iconBackground: string;
   onPress: () => void;
 }) => (
-  <TouchableOpacity style={styles.drawerItem} onPress={onPress}>
-    <Icon name={icon} size={20} color="#1A1F3A" />
-    <Text style={styles.drawerLabel}>{label}</Text>
+  <TouchableOpacity style={styles.drawerItemTouch} onPress={onPress}>
+    <View style={[styles.iconBox, { backgroundColor: iconBackground }]}>
+      <Icon name={icon} size={22} color={iconColor} />
+    </View>
+    <Text style={styles.drawerItemText}>{label}</Text>
   </TouchableOpacity>
 );
 
 const CustomDrawerContent = (props: DrawerContentComponentProps) => {
-  const { signOut } = useAuthState();
+  const { isAuthenticated, signOut } = useAuthState();
   const [role, setRole] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const loadRole = async () => {
+      if (!isAuthenticated) {
+        setRole(null);
+        return;
+      }
+
       const storedRole = await AsyncStorage.getItem('role');
       setRole(storedRole?.toLowerCase() ?? null);
     };
 
     loadRole();
-  }, []);
+  }, [isAuthenticated]);
 
   const navigateToMainStackScreen = (screen: keyof MainStackParamList) => {
     props.navigation.navigate('MainTabs', {
@@ -61,6 +72,17 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
     props.navigation.closeDrawer();
   };
 
+  const navigateToLogin = (roleName: 'doctor' | 'patient') => {
+    props.navigation.navigate('MainTabs', {
+      screen: 'MainStack',
+      params: {
+        screen: 'Login',
+        params: { role: roleName, initialMode: 'login' },
+      },
+    });
+    props.navigation.closeDrawer();
+  };
+
   const handleLogout = async () => {
     props.navigation.closeDrawer();
     await signOut();
@@ -69,40 +91,100 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <DrawerContentScrollView {...props} contentContainerStyle={styles.contentContainer}>
-        <View>
-          <Text style={styles.title}>MindEase</Text>
-          <Text style={styles.subtitle}>Navigation</Text>
+        <View style={styles.menuHeader}>
+          <Text style={styles.menuTitle}>Menu</Text>
+          <TouchableOpacity onPress={() => props.navigation.closeDrawer()}>
+            <Icon name="close" size={24} color="#1A1F3A" />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.section}>
-          <DrawerItem label="Home" icon="home-outline" onPress={() => navigateToMainStackScreen('Home')} />
+        <View style={styles.menuItemsContainer}>
+          <DrawerItem
+            label="Home"
+            icon="home"
+            iconColor="#5B7FFF"
+            iconBackground="#E8EFFF"
+            onPress={() => navigateToMainStackScreen('Home')}
+          />
           <DrawerItem
             label="Appointments"
-            icon="calendar-outline"
+            icon="calendar"
+            iconColor="#4ECDC4"
+            iconBackground="#E0F7F5"
             onPress={() => navigateToTab('Appointment')}
           />
           {role === 'doctor' ? (
-            <DrawerItem label="Billing" icon="receipt-outline" onPress={() => navigateToTab('Billing')} />
+            <DrawerItem
+              label="Billing"
+              icon="receipt"
+              iconColor="#F59E0B"
+              iconBackground="#FFF4E0"
+              onPress={() => navigateToTab('Billing')}
+            />
           ) : (
-            <DrawerItem label="Records" icon="file-tray-full-outline" onPress={() => navigateToTab('Records')} />
+            <DrawerItem
+              label="Records"
+              icon="file-tray-full"
+              iconColor="#5B7FFF"
+              iconBackground="#EEF2FF"
+              onPress={() => navigateToTab('Records')}
+            />
           )}
-          <DrawerItem
-            label="Profile"
-            icon="person-outline"
-            onPress={() => navigateToMainStackScreen('Profile')}
-          />
+          {isAuthenticated ? (
+            <DrawerItem
+              label="Profile"
+              icon="person"
+              iconColor="#5B7FFF"
+              iconBackground="#E8EFFF"
+              onPress={() => navigateToMainStackScreen('Profile')}
+            />
+          ) : null}
           <DrawerItem
             label="Pharmacy"
-            icon="medkit-outline"
+            icon="medkit"
+            iconColor="#5B7FFF"
+            iconBackground="#F0F4FF"
             onPress={() => navigateToMainStackScreen('Pharmacy')}
           />
-          <DrawerItem label="Labs" icon="flask-outline" onPress={() => navigateToMainStackScreen('Labs')} />
+          <DrawerItem
+            label="Labs"
+            icon="flask"
+            iconColor="#10B981"
+            iconBackground="#ECFDF5"
+            onPress={() => navigateToMainStackScreen('Labs')}
+          />
+          {!isAuthenticated ? (
+            <>
+              <DrawerItem
+                label="Doctor Login"
+                icon="medical"
+                iconColor="#5B7FFF"
+                iconBackground="#EEF2FF"
+                onPress={() => navigateToLogin('doctor')}
+              />
+              <DrawerItem
+                label="Patient Login"
+                icon="person"
+                iconColor="#10B981"
+                iconBackground="#F0FDF4"
+                onPress={() => navigateToLogin('patient')}
+              />
+            </>
+          ) : null}
         </View>
       </DrawerContentScrollView>
 
-      <View style={styles.footer}>
-        <DrawerItem label="Logout" icon="log-out-outline" onPress={handleLogout} />
-      </View>
+      {isAuthenticated ? (
+        <View style={styles.footer}>
+          <DrawerItem
+            label="Logout"
+            icon="log-out"
+            iconColor="#EF4444"
+            iconBackground="#FEF2F2"
+            onPress={handleLogout}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 };
@@ -114,10 +196,12 @@ const DrawerNavigator = () => {
         headerShown: false,
         drawerType: 'front',
         swipeEdgeWidth: 50,
+        overlayColor: 'rgba(0,0,0,0.5)',
+        drawerStyle: styles.drawerPanel,
       }}
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      drawerContent={CustomDrawerContent}
     >
-      {/* Keep authenticated app routes behind drawer access. */}
+      {/* Keep tab routes inside a drawer so the menu works in guest and authenticated flows. */}
       <Drawer.Screen name="MainTabs" component={TabNavigator} />
     </Drawer.Navigator>
   );
@@ -128,41 +212,55 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+  drawerPanel: {
+    width: '75%',
+    backgroundColor: '#FFFFFF',
   },
-  title: {
-    fontSize: 22,
+  contentContainer: {
+    padding: 20,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 20,
+  },
+  menuTitle: {
+    fontSize: 24,
     fontWeight: '700',
     color: '#1A1F3A',
   },
-  subtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
+  menuItemsContainer: {
+    gap: 12,
   },
-  section: {
-    marginTop: 20,
-    gap: 6,
-  },
-  drawerItem: {
+  drawerItemTouch: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    gap: 10,
+    backgroundColor: '#F9F9F9',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
   },
-  drawerLabel: {
-    fontSize: 15,
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  drawerItemText: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#1A1F3A',
   },
   footer: {
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
-    padding: 16,
+    padding: 20,
   },
 });
 

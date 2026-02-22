@@ -653,18 +653,6 @@ const HomeScreen = () => {
                             <Icon name="chevron-down" size={14} color="#333" />
                         </TouchableOpacity>
                     </View>
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Icon name="notifications-outline" size={22} color="#1A1F3A" />
-                            <View style={styles.notificationDot} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.iconButton}
-                            onPress={() => setDrawerVisible(true)}
-                        >
-                            <Icon name="menu" size={22} color="#1A1F3A" />
-                        </TouchableOpacity>
-                    </View>
                 </View>
 
                 {/* Location Dropdown Selection */}
@@ -1507,11 +1495,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 10,
     },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
     locationLabel: {
         fontSize: 11,
         color: '#888',
@@ -1730,22 +1713,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: '#1A1F3A',
-    },
-    iconButton: {
-        padding: 8,
-        backgroundColor: '#F5F7FA',
-        borderRadius: 50,
-    },
-    notificationDot: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 8,
-        height: 8,
-        backgroundColor: '#FF5252',
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: '#FFF',
     },
     searchRow: {
         flexDirection: 'row',

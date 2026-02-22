@@ -1,6 +1,7 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 import MainStack from './MainStack';
@@ -11,6 +12,7 @@ import RecordsScreen from '../pages/RecordsScreen';
 import type { TabNavigatorParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabNavigatorParamList>();
+type TabNavProp = BottomTabNavigationProp<TabNavigatorParamList>;
 
 const TabNavigator = () => {
   const [role, setRole] = React.useState<string | null>(null);
@@ -27,7 +29,7 @@ const TabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        header: () => <TopBar />,
+        header: ({ navigation }) => <TopBar navigation={navigation as TabNavProp} />,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: string;
 

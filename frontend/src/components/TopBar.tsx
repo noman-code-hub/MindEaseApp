@@ -1,6 +1,5 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DrawerActions, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import {
   View,
@@ -16,8 +15,11 @@ import type { TabNavigatorParamList } from '../navigation/types';
 
 type TopBarNavigationProp = BottomTabNavigationProp<TabNavigatorParamList>;
 
-const TopBar = () => {
-  const navigation = useNavigation<TopBarNavigationProp>();
+type TopBarProps = {
+  navigation: TopBarNavigationProp;
+};
+
+const TopBar = ({ navigation }: TopBarProps) => {
   const insets = useSafeAreaInsets();
   const [profileName, setProfileName] = React.useState<string>('User');
   const [profileRole, setProfileRole] = React.useState<string>('Patient');
@@ -34,11 +36,24 @@ const TopBar = () => {
   }, []);
 
   const openDrawer = () => {
-    navigation.getParent()?.dispatch(DrawerActions.openDrawer());
+    let currentNavigation: any = navigation;
+
+    while (currentNavigation) {
+      if (typeof currentNavigation.openDrawer === 'function') {
+        currentNavigation.openDrawer();
+        return;
+      }
+
+      currentNavigation = currentNavigation.getParent?.();
+    }
   };
 
   const openProfile = () => {
     navigation.navigate('MainStack', { screen: 'Profile' });
+  };
+
+  const openNotifications = () => {
+    navigation.navigate('Appointment');
   };
 
   return (
@@ -67,8 +82,12 @@ const TopBar = () => {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity style={styles.iconButton} onPress={openNotifications}>
             <Icon name="notifications-outline" size={22} color="#1A1F3A" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.iconButton} onPress={openDrawer}>
+            <Icon name="menu" size={22} color="#1A1F3A" />
           </TouchableOpacity>
         </View>
       </View>
