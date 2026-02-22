@@ -35,7 +35,7 @@ const DrawerItem = ({
 }) => (
   <TouchableOpacity style={styles.drawerItemTouch} onPress={onPress}>
     <View style={[styles.iconBox, { backgroundColor: iconBackground }]}>
-      <Icon name={icon} size={22} color={iconColor} />
+      <Icon name={icon} size={18} color={iconColor} />
     </View>
     <Text style={styles.drawerItemText}>{label}</Text>
   </TouchableOpacity>
@@ -94,7 +94,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         <View style={styles.menuHeader}>
           <Text style={styles.menuTitle}>Menu</Text>
           <TouchableOpacity onPress={() => props.navigation.closeDrawer()}>
-            <Icon name="close" size={24} color="#1A1F3A" />
+            <Icon name="close" size={20} color="#1A1F3A" />
           </TouchableOpacity>
         </View>
 
@@ -217,50 +217,50 @@ const styles = createResponsiveStyles({
     backgroundColor: '#FFFFFF',
   },
   contentContainer: {
-    padding: 20,
+    padding: 16,
   },
   menuHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 20,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   menuTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1A1F3A',
   },
   menuItemsContainer: {
-    gap: 12,
+    gap: 8,
   },
   drawerItemTouch: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F9F9F9',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   drawerItemText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1A1F3A',
   },
   footer: {
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
-    padding: 20,
+    padding: 16,
   },
 });
 

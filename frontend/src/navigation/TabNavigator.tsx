@@ -1,7 +1,7 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,10 +11,10 @@ import TopBar from '../components/TopBar';
 import AppointmentScreen from '../pages/AppointmentScreen';
 import BillingScreen from '../pages/BillingScreen';
 import RecordsScreen from '../pages/RecordsScreen';
-import type { TabNavigatorParamList } from './types';
+import type { DrawerParamList, TabNavigatorParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabNavigatorParamList>();
-type TabNavProp = BottomTabNavigationProp<TabNavigatorParamList>;
+type DrawerNavProp = DrawerNavigationProp<DrawerParamList>;
 const FULLSCREEN_TAB_SCREENS = new Set(['Login']);
 
 const isMainStackFullscreenRoute = (route: any): boolean => {
@@ -52,7 +52,9 @@ const TabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        header: ({ navigation }) => <TopBar navigation={navigation as TabNavProp} />,
+        header: ({ navigation }) => (
+          <TopBar navigation={navigation.getParent() as DrawerNavProp} />
+        ),
         headerShown:
           route.name === 'MainStack' ? !isMainStackFullscreenRoute(route) : true,
         tabBarIcon: ({ focused, color, size }) => {

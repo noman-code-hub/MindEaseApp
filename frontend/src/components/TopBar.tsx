@@ -1,6 +1,6 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { TabNavigatorParamList } from '../navigation/types';
+import type { DrawerParamList } from '../navigation/types';
 import { createResponsiveStyles } from '../utils/responsive';
 
-type TopBarNavigationProp = BottomTabNavigationProp<TabNavigatorParamList>;
+type TopBarNavigationProp = DrawerNavigationProp<DrawerParamList>;
 
 type TopBarProps = {
   navigation: TopBarNavigationProp;
@@ -36,24 +36,18 @@ const TopBar = ({ navigation }: TopBarProps) => {
   }, []);
 
   const openDrawer = () => {
-    let currentNavigation: any = navigation;
-
-    while (currentNavigation) {
-      if (typeof currentNavigation.openDrawer === 'function') {
-        currentNavigation.openDrawer();
-        return;
-      }
-
-      currentNavigation = currentNavigation.getParent?.();
-    }
+    navigation.openDrawer();
   };
 
   const openProfile = () => {
-    navigation.navigate('MainStack', { screen: 'Profile' });
+    navigation.navigate('MainTabs', {
+      screen: 'MainStack',
+      params: { screen: 'Profile' },
+    });
   };
 
   const openNotifications = () => {
-    navigation.navigate('Appointment');
+    navigation.navigate('MainTabs', { screen: 'Appointment' });
   };
 
   return (
@@ -61,8 +55,8 @@ const TopBar = ({ navigation }: TopBarProps) => {
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <View style={styles.content}>
         <View style={styles.left}>
-          <TouchableOpacity onPress={openDrawer} style={styles.iconButton}>
-            <Icon name="menu" size={26} color="#1A1F3A" />
+          <TouchableOpacity onPress={openDrawer} style={[styles.iconButton, styles.menuButton]}>
+            <Icon name="menu" size={22} color="#1A1F3A" />
           </TouchableOpacity>
           <Text style={styles.title}>MindEase</Text>
         </View>
@@ -121,6 +115,11 @@ const styles = createResponsiveStyles({
     alignItems: 'center',
     borderRadius: 18,
     backgroundColor: '#F9FAFB',
+  },
+  menuButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   title: {
     fontSize: 21,
