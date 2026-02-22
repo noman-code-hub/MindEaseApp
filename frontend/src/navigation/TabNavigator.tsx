@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import MainStack from './MainStack';
 import TopBar from '../components/TopBar';
@@ -15,14 +16,6 @@ import type { TabNavigatorParamList } from './types';
 const Tab = createBottomTabNavigator<TabNavigatorParamList>();
 type TabNavProp = BottomTabNavigationProp<TabNavigatorParamList>;
 const FULLSCREEN_TAB_SCREENS = new Set(['Login']);
-const BASE_TAB_BAR_STYLE = {
-  borderTopWidth: 1,
-  borderTopColor: '#F0F0F0',
-  elevation: 5,
-  height: 60,
-  paddingBottom: 8,
-  paddingTop: 8,
-} as const;
 
 const isMainStackFullscreenRoute = (route: any): boolean => {
   const nestedRouteName =
@@ -32,6 +25,20 @@ const isMainStackFullscreenRoute = (route: any): boolean => {
 
 const TabNavigator = () => {
   const [role, setRole] = React.useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+
+  const baseTabBarStyle = React.useMemo(
+    () => ({
+      borderTopWidth: 1,
+      borderTopColor: '#F0F0F0',
+      elevation: 5,
+      height: 60 + insets.bottom,
+      paddingBottom: Math.max(insets.bottom, 8),
+      paddingTop: 8,
+      backgroundColor: '#FFFFFF',
+    }),
+    [insets.bottom],
+  );
 
   React.useEffect(() => {
     const loadRole = async () => {
@@ -67,8 +74,8 @@ const TabNavigator = () => {
         tabBarInactiveTintColor: 'gray',
         tabBarStyle:
           route.name === 'MainStack' && isMainStackFullscreenRoute(route)
-            ? { ...BASE_TAB_BAR_STYLE, display: 'none' }
-            : BASE_TAB_BAR_STYLE,
+            ? { ...baseTabBarStyle, display: 'none' }
+            : baseTabBarStyle,
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',

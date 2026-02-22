@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    ScrollView,
-    Alert,
-    Switch,
-    ActivityIndicator,
-    Modal,
-    FlatList,
-    Image, // Added Image
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Switch,
+  ActivityIndicator,
+  Modal,
+  FlatList,
+  Image,
+  // Added Image
     Dimensions,
-    PermissionsAndroid,
-    Platform,
-    Linking
+  PermissionsAndroid,
+  Platform,
+  Linking,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, MediaType } from 'react-native-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSpecialities, Speciality } from '../services/doctorService';
 import { DoctorStatus } from '../types/enums';
 import { useAuthState } from '../navigation/authState';
+import { createResponsiveStyles } from '../utils/responsive';
 
 
 // --- REFRACTORED COMPONENTS & STYLES ---
@@ -1516,7 +1517,7 @@ const DoctorProfileSetupScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#F5F6FA',

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    Dimensions,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
@@ -252,7 +252,7 @@ const RecordsScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#F8F9FD',

@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import { seedSpecialities, getSpecialities, Speciality } from '../services/doctorService';
 import { specialitiesData } from '../data/specialitiesData';
+import { createResponsiveStyles } from '../utils/responsive';
 
 export const SpecialitiesManagementScreen = () => {
     const [loading, setLoading] = useState(false);
@@ -88,7 +95,7 @@ export const SpecialitiesManagementScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',

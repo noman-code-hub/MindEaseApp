@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Alert,
-    ActivityIndicator
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -18,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppInput from '../components/AppInput';
 import { DoctorStatus } from '../types/enums';
 import { useAuthState } from '../navigation/authState';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const LoginScreen = () => {
     const navigation = useNavigation<any>();
@@ -389,7 +389,7 @@ const LoginScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#3274A6', // Example Blue Color from image

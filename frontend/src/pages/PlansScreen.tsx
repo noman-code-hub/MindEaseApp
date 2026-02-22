@@ -1,5 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+} from 'react-native';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const PlansScreen = () => {
     return (
@@ -9,7 +13,7 @@ const PlansScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',

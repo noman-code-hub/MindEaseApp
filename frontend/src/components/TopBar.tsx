@@ -4,7 +4,6 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
@@ -12,6 +11,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { TabNavigatorParamList } from '../navigation/types';
+import { createResponsiveStyles } from '../utils/responsive';
 
 type TopBarNavigationProp = BottomTabNavigationProp<TabNavigatorParamList>;
 
@@ -85,17 +85,13 @@ const TopBar = ({ navigation }: TopBarProps) => {
           <TouchableOpacity style={styles.iconButton} onPress={openNotifications}>
             <Icon name="notifications-outline" size={22} color="#1A1F3A" />
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.iconButton} onPress={openDrawer}>
-            <Icon name="menu" size={22} color="#1A1F3A" />
-          </TouchableOpacity>
         </View>
       </View>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -166,4 +162,3 @@ const styles = StyleSheet.create({
 });
 
 export default TopBar;
-

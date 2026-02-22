@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    ScrollView,
-    Alert,
-    ActivityIndicator,
-    Modal,
-    Image,
-    Dimensions,
-    Platform
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  Image,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthState } from '../navigation/authState';
+import { createResponsiveStyles } from '../utils/responsive';
 
 // --- SHARED COMPONENTS (Matched with Doctor Setup UI) ---
 
@@ -779,7 +779,7 @@ const ProfileScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     safeArea: { flex: 1, backgroundColor: '#F8F9FD' },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     formContent: { padding: 20 },

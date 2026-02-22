@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    TextInput,
-    ActivityIndicator,
-    Image,
-    Modal,
-    FlatList,
-    StatusBar
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  Image,
+  Modal,
+  FlatList,
+  StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -21,6 +20,7 @@ import { Calendar } from 'react-native-calendars';
 import { bookAppointment } from '../services/appointmentService';
 import DoctorProfileModal from '../components/DoctorProfileModal';
 import { Alert } from 'react-native';
+import { createResponsiveStyles } from '../utils/responsive';
 
 // Debounce helper
 const useDebounce = (value: string, delay: number) => {
@@ -668,7 +668,7 @@ const AllSpecialistsScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',

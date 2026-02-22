@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    Image,
-    ActivityIndicator,
-    Modal,
-    Alert,
-    Animated,
-    Easing,
-    Dimensions,
+  View,
+  Text,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Modal,
+  Alert,
+  Animated,
+  Easing,
+  Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -24,6 +23,7 @@ import DoctorProfileModal from '../components/DoctorProfileModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppInput from '../components/AppInput';
 import { useAuthState } from '../navigation/authState';
+import { createResponsiveStyles } from '../utils/responsive';
 
 interface Review {
     id: number;
@@ -1467,7 +1467,7 @@ const HomeScreen = () => {
 };
 
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',

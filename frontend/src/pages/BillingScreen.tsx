@@ -1,6 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  SafeAreaView,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const BillingScreen = () => {
     return (
@@ -20,7 +25,7 @@ const BillingScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',

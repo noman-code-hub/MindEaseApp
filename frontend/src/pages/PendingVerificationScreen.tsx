@@ -1,17 +1,17 @@
 import React from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
-    Dimensions,
-    Alert,
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  Dimensions,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthState } from '../navigation/authState';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
@@ -142,7 +142,7 @@ const PendingVerificationScreen = ({ onRefresh }: { onRefresh?: () => void }) =>
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#1A1F3A', // Deep primary blue

@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    ActivityIndicator,
-    RefreshControl,
-    TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
-    Alert,
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  RefreshControl,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createResponsiveStyles } from '../utils/responsive';
 
 interface Appointment {
     _id: string;
@@ -287,7 +287,7 @@ const AppointmentScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#F9FAFB',

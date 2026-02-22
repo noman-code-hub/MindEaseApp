@@ -1,7 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Image,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Doctor } from '../services/doctorService';
+import { createResponsiveStyles } from '../utils/responsive';
 
 interface DoctorProfileModalProps {
     visible: boolean;
@@ -171,7 +180,7 @@ const DoctorProfileModal: React.FC<DoctorProfileModalProps> = ({ visible, onClos
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',

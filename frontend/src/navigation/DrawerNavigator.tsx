@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
@@ -17,6 +16,7 @@ import {
 import TabNavigator from './TabNavigator';
 import type { DrawerParamList, MainStackParamList } from './types';
 import { useAuthState } from './authState';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
@@ -207,7 +207,7 @@ const DrawerNavigator = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',

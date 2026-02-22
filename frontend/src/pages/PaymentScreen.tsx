@@ -1,20 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    Modal,
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    ActivityIndicator,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AppInput from '../components/AppInput';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { bookAppointment, startPayment, confirmPayment, getPaymentStatus } from '../services/appointmentService';
+import { createResponsiveStyles } from '../utils/responsive';
 
 type PaymentMethod = 'easypaisa' | 'jazzcash' | 'card';
 
@@ -368,7 +368,7 @@ const PaymentScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',

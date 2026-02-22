@@ -12,6 +12,7 @@ import MapView, { Marker, Region, MapPressEvent, MarkerDragStartEndEvent } from 
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const { width, height } = Dimensions.get('window');
 
@@ -173,7 +174,7 @@ const SelectLocationScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFF',

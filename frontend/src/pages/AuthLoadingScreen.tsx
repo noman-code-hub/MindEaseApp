@@ -1,7 +1,12 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
+import {
+  View,
+  ActivityIndicator,
+  StatusBar,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { createResponsiveStyles } from '../utils/responsive';
 
 const AuthLoadingScreen = () => {
     const navigation = useNavigation<any>();
@@ -93,7 +98,7 @@ const AuthLoadingScreen = () => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',

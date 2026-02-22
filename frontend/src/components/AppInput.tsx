@@ -1,15 +1,15 @@
 import React, { forwardRef } from 'react';
 import {
-    View,
-    Text,
-    TextInput,
-    StyleSheet,
-    TextInputProps,
-    StyleProp,
-    ViewStyle,
-    TextStyle
+  View,
+  Text,
+  TextInput,
+  TextInputProps,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { createResponsiveStyles } from '../utils/responsive';
 
 interface AppInputProps extends TextInputProps {
     label?: string;
@@ -66,7 +66,7 @@ const AppInput = forwardRef<TextInput, AppInputProps>(({
     );
 });
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
     container: {
         marginBottom: 12,
         width: '100%',
